@@ -1,5 +1,5 @@
 mod commands;
-use commands::ping::PING_COMMAND;
+use commands::{ping::PING_COMMAND, zumbor::ZUMBOR_COMMAND};
 pub mod config;
 use config::Config;
 use serenity::{
@@ -9,7 +9,7 @@ use serenity::{
 };
 
 #[group]
-#[commands(ping)]
+#[commands(ping, zumbor)]
 struct General;
 
 struct Handler;
