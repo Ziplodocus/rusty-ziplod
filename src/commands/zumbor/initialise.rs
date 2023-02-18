@@ -16,7 +16,7 @@ use super::{
 pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
     let mut running_games: HashMap<UserId, bool> = HashMap::new();
 
-    let display = DisplayBuilder::from(ctx, msg).await?;
+    let mut display = DisplayBuilder::new(ctx, msg).await?;
 
     let player_id: UserId = msg.author.id;
 
@@ -33,6 +33,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         .await
         .or(display.request_player().await)?;
 
+    display.assign_player(&player);
     let display: Display = display.build()?;
     // initialise_player_events(player, display);
 
@@ -47,7 +48,9 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             Ok(val) => val,
             Err(err) => {
                 println!("{}", err);
-                display.say("Something went wrong retrieving the player choice");
+                display
+                    .say("Something went wrong retrieving the player choice")
+                    .await;
                 break Err(Error::Other("Player choice resulted in an error"));
             }
         };
@@ -88,12 +91,16 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         player.apply_effects();
         player.add_score(1);
 
-        display.encounter_result(&encounter_result);
+        if let Err(err) = display.encounter_result(&encounter_result).await {
+            println!("Unable to display the encounter result. {}", err);
+        }
 
         if player.health <= 0 {
             player.effects.clear();
 
-            display.say(format!("Uh oh {} died", &player.name).as_ref());
+            display
+                .say(format!("Uh oh {} died", &player.name).as_ref())
+                .await;
 
             // match scoreboard.update(player).await {
             //     Ok(did_win) => match did_win {
@@ -107,7 +114,10 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             // };
 
             running_games.remove(&player_id);
-            player.remove();
+            if let Err(err) = player.remove().await {
+                println!("{}", err);
+                println!("Unable to remove player");
+            }
             return Ok(true);
         }
 
@@ -117,19 +127,23 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             continue;
         };
 
-        display.say(format!("{} retires for now...", player.name).as_ref());
+        display
+            .say(format!("{} retires for now...", player.name).as_ref())
+            .await;
 
         match player.save().await {
-            Ok(_saved) => display.say("Saved Successfully"),
+            Ok(_saved) => display.say("Saved Successfully").await,
             Err(err) => {
                 println!("{}", err);
-                display.say(
-                    format!(
-                        "Something went wrong while saving... Say goodbye to {}",
-                        player.name
+                display
+                    .say(
+                        format!(
+                            "Something went wrong while saving... Say goodbye to {}",
+                            player.name
+                        )
+                        .as_ref(),
                     )
-                    .as_ref(),
-                );
+                    .await;
             }
         }
 

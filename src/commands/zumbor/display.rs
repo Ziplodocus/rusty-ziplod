@@ -1,6 +1,6 @@
 use serenity::{
     model::{
-        prelude::{ChannelId, ChannelType, Message},
+        prelude::{ChannelCategory, ChannelId, ChannelType, Message},
         user::User,
     },
     prelude::Context,
@@ -18,6 +18,7 @@ pub struct Display<'a> {
     channel: ChannelId,
     player: &'a Player,
 }
+
 pub struct DisplayBuilder<'a> {
     context: &'a Context,
     user: &'a User,
@@ -25,24 +26,23 @@ pub struct DisplayBuilder<'a> {
     player: Option<&'a Player>,
 }
 
-impl DisplayBuilder<'_> {
-    pub async fn from<'a>(ctx: &'a Context, msg: &'a Message) -> Result<DisplayBuilder<'a>, Error> {
+impl<'a> DisplayBuilder<'a> {
+    pub async fn new<'b: 'a>(
+        ctx: &'b Context,
+        msg: &'b Message,
+    ) -> Result<DisplayBuilder<'a>, Error> {
         let channel = msg.channel(ctx).await?;
-        let channel_id = msg.channel_id;
-        println!("{}", channel_id);
-        println!("{}", channel.clone());
 
-        let channel_type = channel
-            .clone()
-            .category()
-            .ok_or(Error::Other("Channel has no category"))?
-            .kind;
+        let channel_cat = channel.guild().unwrap();
+
+        let channel_type = channel_cat.kind;
 
         if channel_type != ChannelType::Text {
             return Err(Error::Other("Channel is not of type text channel"));
         }
 
         let user = &msg.author;
+        let channel_id = msg.channel_id;
 
         Ok(DisplayBuilder {
             context: ctx,
@@ -79,6 +79,10 @@ impl DisplayBuilder<'_> {
         Ok(player)
     }
 
+    pub fn assign_player<'b: 'a>(&mut self, player: &'b Player) {
+        self.player = Some(player);
+    }
+
     pub fn build(&self) -> Result<Display, Error> {
         if let Some(player) = self.player {
             Ok(Display {
@@ -94,8 +98,8 @@ impl DisplayBuilder<'_> {
 }
 
 impl Display<'_> {
-    pub fn say(&self, message_content: &str) -> () {
-        self.channel.say(self.context, message_content);
+    pub async fn say(&self, message_content: &str) -> () {
+        self.channel.say(self.context, message_content).await;
     }
 
     pub async fn encounter_details(&self, _encounter: &Encounter) -> Result<Encounter, Error> {
