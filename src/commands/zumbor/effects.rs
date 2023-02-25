@@ -1,3 +1,5 @@
+use std::fmt::{Display, self};
+
 use serde::{Deserialize, Serialize};
 
 use super::player::Stats;
@@ -25,6 +27,17 @@ pub enum Attribute {
     Strength,
     Wisdom,
     Agility,
+}
+
+impl Display for Attribute {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+           Attribute::Charisma => write!(f, "Charisma"),
+           Attribute::Strength => write!(f, "Strength"),
+           Attribute::Wisdom => write!(f, "Wisdom"),
+           Attribute::Agility => write!(f, "Agility"),
+       }
+    }
 }
 
 fn map_attribute_name(potential_attribute_name: &str) -> Option<Attribute> {

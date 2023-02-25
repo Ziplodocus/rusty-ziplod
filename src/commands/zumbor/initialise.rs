@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration, sync::Arc};
 
 use serenity::{
     futures::lock::{Mutex, MutexGuard},
-    model::prelude::{ActivityButton, Message, UserId},
+    model::prelude::{ActivityButton, Message, UserId, interaction::message_component::MessageComponentInteraction},
     prelude::Context,
     Error,
 };
@@ -37,34 +37,21 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
     let player_mutex: Mutex<Player> = Mutex::new(player);
 
     display.player(&player_mutex);
-    let display: Display = display.build()?;
+
+    let mut display: Display = display.build()?;
     // initialise_player_events(player, display);
 
     loop {
-        let mut _interaction: Option<ActivityButton>;
-
         let mut encounter: Encounter = Encounter::new().await?;
 
-        display.encounter_details(&encounter).await?;
-
-        let mut player: MutexGuard<Player> = player_mutex.lock().await;
-
-        let player_choice = match display.encounter_options(&encounter).await {
-            Ok(val) => val,
-            Err(err) => {
-                println!("{}", err);
-                display
-                    .say("Something went wrong retrieving the player choice")
-                    .await;
-                break Err(Error::Other("Player choice resulted in an error"));
-            }
-        };
+        let player_choice = display.encounter_details(&encounter).await?;
 
         let encounter_option = encounter
-            .options
-            .get_mut(player_choice)
-            .expect("Player choice should be limited to encounter option keys");
+        .options
+        .get_mut(&player_choice)
+        .expect("Player choice should be limited to encounter option keys");
 
+        let mut player: MutexGuard<Player> = player_mutex.lock().await;
         let player_roll = player.roll_stat(&encounter_option.stat);
 
         let encounter_result = if player_roll.value >= encounter_option.threshold.into() {
@@ -96,9 +83,13 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         player.apply_effects();
         player.add_score(1);
 
+        drop(player);
+
         if let Err(err) = display.encounter_result(&encounter_result).await {
             println!("Unable to display the encounter result. {}", err);
         }
+
+        let mut player: MutexGuard<Player> = player_mutex.lock().await;
 
         if player.health <= 0 {
             player.effects.clear();
