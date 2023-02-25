@@ -1,4 +1,5 @@
 use serenity::{
+    futures::lock::Mutex,
     model::{
         prelude::{ChannelCategory, ChannelId, ChannelType, Message},
         user::User,
@@ -16,14 +17,14 @@ pub struct Display<'a> {
     context: &'a Context,
     user: &'a User,
     channel: ChannelId,
-    player: &'a Player,
+    player: &'a Mutex<Player>,
 }
 
 pub struct DisplayBuilder<'a> {
     context: &'a Context,
     user: &'a User,
     channel: ChannelId,
-    player: Option<&'a Player>,
+    player: Option<&'a Mutex<Player>>,
 }
 
 impl<'a> DisplayBuilder<'a> {
@@ -79,7 +80,7 @@ impl<'a> DisplayBuilder<'a> {
         Ok(player)
     }
 
-    pub fn assign_player<'b: 'a>(&mut self, player: &'b Player) {
+    pub fn player<'b: 'a>(&mut self, player: &'b Mutex<Player>) {
         self.player = Some(player);
     }
 

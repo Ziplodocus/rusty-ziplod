@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serenity::{
+    futures::lock::{Mutex, MutexGuard},
     model::prelude::{ActivityButton, Message, UserId},
     prelude::Context,
     Error,
@@ -29,11 +30,13 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 
     running_games.insert(player_id, true);
 
-    let mut player: Player = Player::load(player_id)
+    let player: Player = Player::load(player_id)
         .await
         .or(display.request_player().await)?;
 
-    display.assign_player(&player);
+    let player_mutex: Mutex<Player> = Mutex::new(player);
+
+    display.player(&player_mutex);
     let display: Display = display.build()?;
     // initialise_player_events(player, display);
 
@@ -43,6 +46,8 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         let mut encounter: Encounter = Encounter::new().await?;
 
         display.encounter_details(&encounter).await?;
+
+        let mut player: MutexGuard<Player> = player_mutex.lock().await;
 
         let player_choice = match display.encounter_options(&encounter).await {
             Ok(val) => val,
@@ -58,7 +63,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         let encounter_option = encounter
             .options
             .get_mut(player_choice)
-            .expect("Player choice is limited to encounter option keys");
+            .expect("Player choice should be limited to encounter option keys");
 
         let player_roll = player.roll_stat(&encounter_option.stat);
 
@@ -114,10 +119,11 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             // };
 
             running_games.remove(&player_id);
-            if let Err(err) = player.remove().await {
-                println!("{}", err);
-                println!("Unable to remove player");
-            }
+            // let result = player.remove();
+            // if let Err(err) = result.await {
+            //     println!("{}", err);
+            //     println!("Unable to remove player");
+            // }
             return Ok(true);
         }
 
@@ -131,21 +137,21 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             .say(format!("{} retires for now...", player.name).as_ref())
             .await;
 
-        match player.save().await {
-            Ok(_saved) => display.say("Saved Successfully").await,
-            Err(err) => {
-                println!("{}", err);
-                display
-                    .say(
-                        format!(
-                            "Something went wrong while saving... Say goodbye to {}",
-                            player.name
-                        )
-                        .as_ref(),
-                    )
-                    .await;
-            }
-        }
+        // match player.save().await {
+        //     Ok(_saved) => display.say("Saved Successfully").await,
+        //     Err(err) => {
+        //         println!("{}", err);
+        //         display
+        //             .say(
+        //                 format!(
+        //                     "Something went wrong while saving... Say goodbye to {}",
+        //                     player.name
+        //                 )
+        //                 .as_ref(),
+        //             )
+        //             .await;
+        //     }
+        // }
 
         running_games.remove(&player_id);
     }
