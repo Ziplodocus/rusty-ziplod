@@ -1,8 +1,11 @@
-use std::{collections::HashMap, time::Duration, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use serenity::{
     futures::lock::{Mutex, MutexGuard},
-    model::prelude::{ActivityButton, Message, UserId, interaction::message_component::MessageComponentInteraction},
+    model::prelude::{
+        interaction::message_component::MessageComponentInteraction, ActivityButton, Message,
+        UserId,
+    },
     prelude::Context,
     Error,
 };
@@ -17,12 +20,12 @@ use super::{
 pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
     let mut running_games: HashMap<UserId, bool> = HashMap::new();
 
-    let mut display = DisplayBuilder::new(ctx, msg).await?;
+    let mut display_builder = DisplayBuilder::new(ctx, msg).await?;
 
     let player_id: UserId = msg.author.id;
 
     if running_games.get(&player_id).is_some() {
-        display.say("You already have a Zumbor instance running dumbo.");
+        display_builder.say("You already have a Zumbor instance running dumbo.");
         return Err(Error::Other(
             "The user already has a Zumbor instance running",
         ));
@@ -32,13 +35,13 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 
     let player: Player = Player::load(player_id)
         .await
-        .or(display.request_player().await)?;
+        .or(display_builder.request_player().await)?;
 
     let player_mutex: Mutex<Player> = Mutex::new(player);
 
-    display.player(&player_mutex);
+    display_builder.player(&player_mutex);
 
-    let mut display: Display = display.build()?;
+    let mut display: Display = display_builder.build()?;
     // initialise_player_events(player, display);
 
     loop {
@@ -47,9 +50,9 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         let player_choice = display.encounter_details(&encounter).await?;
 
         let encounter_option = encounter
-        .options
-        .get_mut(&player_choice)
-        .expect("Player choice should be limited to encounter option keys");
+            .options
+            .get_mut(&player_choice)
+            .expect("Player choice should be limited to encounter option keys");
 
         let mut player: MutexGuard<Player> = player_mutex.lock().await;
         let player_roll = player.roll_stat(&encounter_option.stat);
