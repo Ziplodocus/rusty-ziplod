@@ -1,18 +1,27 @@
 use std::{any::Any, sync::Arc, time::Duration};
 
 use serenity::{
+    builder::CreateEmbed,
     futures::lock::Mutex,
     model::{
-        prelude::{ChannelCategory, ChannelId, ChannelType, Message, Embed, component::ButtonStyle, interaction::message_component::MessageComponentInteraction},
+        prelude::{
+            component::ButtonStyle,
+            interaction::{
+                message_component::MessageComponentInteraction, InteractionResponseType,
+            },
+            ChannelCategory, ChannelId, ChannelType, Embed, Message,
+        },
         user::User,
     },
     prelude::Context,
-    Error, utils::{MessageBuilder, Colour}, builder::CreateEmbed,
+    utils::{Colour, MessageBuilder},
+    Error,
 };
 
 use super::{
+    effects::BaseEffect,
     encounter::{Encounter, EncounterResult, EncounterResultName},
-    player::Player, effects::BaseEffect,
+    player::Player,
 };
 
 pub struct Display<'a> {
@@ -20,7 +29,7 @@ pub struct Display<'a> {
     user: &'a User,
     channel: ChannelId,
     player: &'a Mutex<Player>,
-    interaction: Option<Arc<MessageComponentInteraction>>
+    interaction: Option<Arc<MessageComponentInteraction>>,
 }
 
 pub struct DisplayBuilder<'a> {
@@ -28,7 +37,7 @@ pub struct DisplayBuilder<'a> {
     user: &'a User,
     channel: ChannelId,
     player: Option<&'a Mutex<Player>>,
-    interaction: Option<Arc<MessageComponentInteraction>>
+    interaction: Option<Arc<MessageComponentInteraction>>,
 }
 
 impl<'a> DisplayBuilder<'a> {
@@ -54,7 +63,7 @@ impl<'a> DisplayBuilder<'a> {
             user,
             channel: channel_id,
             player: None,
-            interaction: None
+            interaction: None,
         })
     }
 
@@ -89,14 +98,14 @@ impl<'a> DisplayBuilder<'a> {
         self.player = Some(player);
     }
 
-    pub fn build(&self) -> Result<Display, Error> {
+    pub fn build(self) -> Result<Display<'a>, Error> {
         if let Some(player) = self.player {
             Ok(Display {
                 player,
                 context: self.context,
                 user: self.user,
                 channel: self.channel,
-                interaction: None
+                interaction: None,
             })
         } else {
             Err(Error::Other("No player has been added!"))
@@ -104,64 +113,57 @@ impl<'a> DisplayBuilder<'a> {
     }
 }
 
-
-
-
 impl Display<'_> {
-
-
     pub async fn say(&self, message_content: &str) -> () {
         self.channel.say(self.context, message_content).await;
     }
 
-
     pub async fn encounter_details(&mut self, encounter: &Encounter) -> Result<String, Error> {
-        let message = self.channel.send_message(self.context, |message| {
-            message.embed(|emb|
-                emb
-                .title(&encounter.title)
-                .description(&encounter.text)
-                .color(encounter.color.unwrap_or_default())
-            );
+        let message = self
+            .channel
+            .send_message(self.context, |message| {
+                message.embed(|emb| {
+                    emb.title(&encounter.title)
+                        .description(&encounter.text)
+                        .color(encounter.color.unwrap_or_default())
+                });
 
-            message.components(|components| {
-                components.create_action_row(|row| {
-                    for (label, _) in &encounter.options {
+                message.components(|components| {
+                    components.create_action_row(|row| {
+                        for (label, _) in &encounter.options {
+                            row.create_button(|but| {
+                                but.custom_id(&label)
+                                    .label(&label)
+                                    .style(ButtonStyle::Primary)
+                            });
+                        }
                         row
-                        .create_button(|but| {
-                            but
-                            .custom_id(&label)
-                            .label(&label)
-                            .style(ButtonStyle::Primary)
-                        });
-                    }
-                    row
+                    })
                 })
             })
-        }).await;
+            .await;
 
         match message {
             Ok(message) => {
-                println!("{:?}\n\n", message);
-                println!("{:?}\n\n", self.player);
                 self.interaction = message
                     .await_component_interaction(self.context)
                     .author_id(self.player.lock().await.user)
-                    .timeout(Duration::new(60,0))
+                    .timeout(Duration::new(60, 0))
                     .collect_limit(1)
                     .await;
 
-                println!("Message interaction awaited!");
+                println!("Message interaction awaited!\n\n");
 
-                println!("{:?}\n\n", self.interaction);
-
-                let choice = self.interaction.as_ref()
+                let choice = self
+                    .interaction
+                    .as_ref()
                     .ok_or(Error::Other("Message interaction was not collected"))?
                     .data
-                    .custom_id.clone();
+                    .custom_id
+                    .clone();
 
                 Ok(choice)
-            },
+            }
             Err(err) => {
                 println!("{}", err);
                 self.say("Something went wrong retrieving the player choice")
@@ -171,29 +173,35 @@ impl Display<'_> {
         }
     }
 
-
-    pub async fn encounter_result(&self, encounter: &EncounterResult) -> Result<Message, Error> {
+    pub async fn encounter_result(&self, encounter: &EncounterResult) -> Result<(), Error> {
         let player_lock = self.player.lock().await;
-        self.interaction.as_ref()
-            .expect("Interaction to exist, since this is the result of an interaction")
-            .create_followup_message(self.context, |message| {
-                message.embed(|emb|
-                    emb
-                    .title(format!("{} chose to {}", player_lock.name, self.interaction.as_ref().expect("Exists!").data.custom_id))
-                ).add_embed(create_result_embed(&encounter))
-            }).await
-    }
 
+        self.interaction
+            .as_ref()
+            .expect("Interaction to exist, since this is the result of an interaction")
+            .create_interaction_response(self.context, |response| {
+                response.kind(InteractionResponseType::ChannelMessageWithSource);
+                response.interaction_response_data(|message| {
+                    message.embed(|emb| {
+                        emb.title(format!(
+                            "{} chose to {}",
+                            player_lock.name,
+                            self.interaction.as_ref().expect("Exists!").data.custom_id
+                        ))
+                    });
+                    println!("{:?}", message);
+                    message.add_embed(create_result_embed(&encounter))
+                })
+            })
+            .await
+    }
 
     pub async fn request_continue(&self) -> Result<bool, Error> {
         todo!()
     }
 }
 
-
-
-
-fn create_result_embed(result : &EncounterResult) -> CreateEmbed {
+fn create_result_embed(result: &EncounterResult) -> CreateEmbed {
     let mut embed = CreateEmbed::default();
 
     embed
@@ -208,10 +216,10 @@ fn create_result_embed(result : &EncounterResult) -> CreateEmbed {
         match effect {
             BaseEffect::Stat(eff) => {
                 embed.field(&eff.name, eff.potency, true);
-            },
+            }
             BaseEffect::Health(eff) => {
                 embed.field("Health", eff.potency, true);
-            },
+            }
         }
     }
 
