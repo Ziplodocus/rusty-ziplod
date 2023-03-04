@@ -50,7 +50,7 @@ impl Default for EncounterOption {
             fail: EncounterResult {
                 kind: EncounterResultName::Success("Oh no".into()),
                 title: "You gone fucked up".into(),
-                text: "But nothing bad has happened".into(),
+                text: "But something bad has happened".into(),
                 base_effect: None,
                 lingering_effect: None,
             },

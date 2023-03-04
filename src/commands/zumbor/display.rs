@@ -1,7 +1,7 @@
-use std::{any::Any, sync::Arc, time::Duration};
+use std::{any::Any, fmt, panic, str::FromStr, sync::Arc, time::Duration};
 
 use serenity::{
-    builder::CreateEmbed,
+    builder::{self, CreateEmbed},
     futures::lock::Mutex,
     model::{
         prelude::{
@@ -9,7 +9,7 @@ use serenity::{
             interaction::{
                 message_component::MessageComponentInteraction, InteractionResponseType,
             },
-            ChannelCategory, ChannelId, ChannelType, Embed, Message,
+            ChannelCategory, ChannelId, ChannelType, Embed, Message, UserId,
         },
         user::User,
     },
@@ -26,94 +26,65 @@ use super::{
 
 pub struct Display<'a> {
     context: &'a Context,
-    user: &'a User,
+    user: UserId,
     channel: ChannelId,
     player: &'a Mutex<Player>,
     interaction: Option<Arc<MessageComponentInteraction>>,
 }
 
+#[derive(Default)]
 pub struct DisplayBuilder<'a> {
-    context: &'a Context,
-    user: &'a User,
-    channel: ChannelId,
+    context: Option<&'a Context>,
+    user: Option<UserId>,
+    channel: Option<ChannelId>,
     player: Option<&'a Mutex<Player>>,
-    interaction: Option<Arc<MessageComponentInteraction>>,
 }
 
 impl<'a> DisplayBuilder<'a> {
-    pub async fn new<'b: 'a>(
-        ctx: &'b Context,
-        msg: &'b Message,
-    ) -> Result<DisplayBuilder<'a>, Error> {
-        let channel = msg.channel(ctx).await?;
-
-        let channel_cat = channel.guild().unwrap();
-
-        let channel_type = channel_cat.kind;
-
-        if channel_type != ChannelType::Text {
-            return Err(Error::Other("Channel is not of type text channel"));
-        }
-
-        let user = &msg.author;
-        let channel_id = msg.channel_id;
-
-        Ok(DisplayBuilder {
-            context: ctx,
-            user,
-            channel: channel_id,
-            player: None,
-            interaction: None,
-        })
+    pub fn context(mut self, context: &'a Context) -> Self {
+        self.context = Some(&context);
+        self
     }
 
-    pub fn say(&self, message_content: &str) -> () {
-        self.channel.say(self.context, message_content);
+    pub fn user(mut self, user: UserId) -> Self {
+        self.user = Some(user);
+        self
     }
 
-    pub async fn request_player(&self) -> Result<Player, Error> {
-        let player: Player = serde_json::from_str(
-            "
-        {
-            user: {
-                0: 1
-            },
-            description: 'Really good looking',
-            name: 'Handsome Jack',
-            health: '20',
-            score: '0',
-            stats: {
-                charisma: '10',
-                strength: '3',
-                wisdom: '2',
-                agility: '1',
-            },
-            effects: [],
-        }",
-        )?;
-        Ok(player)
+    pub fn channel(mut self, channel: ChannelId) -> Self {
+        self.channel = Some(channel);
+        self
     }
 
-    pub fn player<'b: 'a>(&mut self, player: &'b Mutex<Player>) {
+    pub fn player(mut self, player: &'a Mutex<Player>) -> Self {
         self.player = Some(player);
+        self
     }
 
-    pub fn build(self) -> Result<Display<'a>, Error> {
-        if let Some(player) = self.player {
-            Ok(Display {
-                player,
-                context: self.context,
-                user: self.user,
-                channel: self.channel,
-                interaction: None,
-            })
-        } else {
-            Err(Error::Other("No player has been added!"))
+    pub fn build(self) -> Display<'a> {
+        Display {
+            player: self
+                .player
+                .expect("Player should be added to the builder before building"),
+            context: self
+                .context
+                .expect("Context should be added to the builder before building"),
+            user: self
+                .user
+                .expect("User should be added to the builder before building"),
+            channel: self
+                .channel
+                .expect("Channel should be added to the builder before building"),
+            interaction: None,
         }
     }
 }
 
 impl Display<'_> {
+    pub fn builder() -> DisplayBuilder<'static> {
+        DisplayBuilder::default()
+    }
+
     pub async fn say(&self, message_content: &str) -> () {
         self.channel.say(self.context, message_content).await;
     }
@@ -196,8 +167,54 @@ impl Display<'_> {
             .await
     }
 
-    pub async fn request_continue(&self) -> Result<bool, Error> {
-        todo!()
+    pub async fn request_continue(&self) -> Result<ContinueOption, Error> {
+        println!("Requsting continue!");
+        let message = self
+            .channel
+            .send_message(self.context, |message| {
+                message.components(|components| {
+                    components.create_action_row(|row| {
+                        row.create_button(|button| {
+                            button
+                                .custom_id(ContinueOption::Continue)
+                                .label("Continue your journey")
+                        })
+                        .create_button(|button| {
+                            button.custom_id(ContinueOption::Rest).label("Take a break")
+                        })
+                    })
+                })
+            })
+            .await;
+
+        println!("Requsting continue!");
+
+        match message {
+            Ok(message) => {
+                let interaction = message
+                    .await_component_interaction(self.context)
+                    .author_id(self.player.lock().await.user)
+                    .timeout(Duration::new(60, 0))
+                    .collect_limit(1)
+                    .await;
+
+                println!("Message interaction awaited!\n\n");
+
+                let choice = interaction
+                    .ok_or(Error::Other("Message interaction was not collected"))?
+                    .data
+                    .custom_id
+                    .clone();
+
+                Ok(ContinueOption::from(choice))
+            }
+            Err(err) => {
+                println!("{}", err);
+                self.say("Something went wrong retrieving the player choice")
+                    .await;
+                Err(Error::Other("Player choice resulted in an error"))
+            }
+        }
     }
 }
 
@@ -224,4 +241,28 @@ fn create_result_embed(result: &EncounterResult) -> CreateEmbed {
     }
 
     embed.to_owned()
+}
+
+pub enum ContinueOption {
+    Continue,
+    Rest,
+}
+
+impl fmt::Display for ContinueOption {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ContinueOption::Continue => write!(f, "continue"),
+            ContinueOption::Rest => write!(f, "rest"),
+        }
+    }
+}
+
+impl From<String> for ContinueOption {
+    fn from(choice: String) -> Self {
+        match choice.as_str() {
+            "continue" => ContinueOption::Continue,
+            "rest" => ContinueOption::Rest,
+            _ => panic!("Don't call me on strings that aren't correct"),
+        }
+    }
 }

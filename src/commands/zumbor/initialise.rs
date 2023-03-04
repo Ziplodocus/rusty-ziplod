@@ -9,9 +9,10 @@ use serenity::{
     prelude::Context,
     Error,
 };
+use tokio::sync::broadcast::error::TryRecvError;
 
 use super::{
-    display::{Display, DisplayBuilder},
+    display::{ContinueOption, Display},
     effects::{BaseEffect, Effectable},
     encounter::Encounter,
     player::Player,
@@ -20,12 +21,11 @@ use super::{
 pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
     let mut running_games: HashMap<UserId, bool> = HashMap::new();
 
-    let mut display_builder = DisplayBuilder::new(ctx, msg).await?;
-
     let player_id: UserId = msg.author.id;
 
     if running_games.get(&player_id).is_some() {
-        display_builder.say("You already have a Zumbor instance running dumbo.");
+        msg.channel_id
+            .say(ctx, "You already have a Zumbor instance running you mug");
         return Err(Error::Other(
             "The user already has a Zumbor instance running",
         ));
@@ -33,15 +33,16 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 
     running_games.insert(player_id, true);
 
-    let player: Player = Player::load(player_id)
-        .await
-        .or(display_builder.request_player().await)?;
+    let player: Player = Player::load(player_id).await.or(request_player().await)?;
 
     let player_mutex: Mutex<Player> = Mutex::new(player);
 
-    display_builder.player(&player_mutex);
-
-    let mut display: Display = display_builder.build()?;
+    let mut display: Display = Display::builder()
+        .channel(msg.channel_id)
+        .user(player_id)
+        .context(ctx)
+        .player(&player_mutex)
+        .build();
     // initialise_player_events(player, display);
 
     loop {
@@ -121,11 +122,15 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             return Ok(true);
         }
 
-        let resume_playing: bool = display.request_continue().await?;
+        drop(player);
 
-        if resume_playing {
+        let resume_playing: ContinueOption = display.request_continue().await?;
+
+        if let ContinueOption::Continue = resume_playing {
             continue;
         };
+
+        let player: MutexGuard<Player> = player_mutex.lock().await;
 
         display
             .say(format!("{} retires for now...", player.name).as_ref())
@@ -148,7 +153,10 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         // }
 
         running_games.remove(&player_id);
+
+        break;
     }
+    Ok(true)
 }
 
 // fn initialise_player_events(player: Player, display: Display) {
@@ -171,3 +179,25 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 //         ));
 //     });
 // }
+
+async fn request_player() -> Result<Player, Error> {
+    let player: Player = serde_json::from_str(
+        "{
+            user: {
+                0: 1
+            },
+            description: 'Really good looking',
+            name: 'Handsome Jack',
+            health: '20',
+            score: '0',
+            stats: {
+                charisma: '10',
+                strength: '3',
+                wisdom: '2',
+                agility: '1',
+            },
+            effects: [],
+        }",
+    )?;
+    Ok(player)
+}
