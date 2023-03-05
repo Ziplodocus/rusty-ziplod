@@ -1,21 +1,21 @@
-use std::fmt::{Display, self};
+use std::fmt::{self, Display};
 
 use serde::{Deserialize, Serialize};
 
 use super::player::Stats;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum BaseEffect {
     Stat(BaseStatEffect),
     Health(BaseHealthEffect),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct BaseHealthEffect {
     pub potency: i16,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct BaseStatEffect {
     pub name: Attribute,
     pub potency: i16,
@@ -32,11 +32,11 @@ pub enum Attribute {
 impl Display for Attribute {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-           Attribute::Charisma => write!(f, "Charisma"),
-           Attribute::Strength => write!(f, "Strength"),
-           Attribute::Wisdom => write!(f, "Wisdom"),
-           Attribute::Agility => write!(f, "Agility"),
-       }
+            Attribute::Charisma => write!(f, "Charisma"),
+            Attribute::Strength => write!(f, "Strength"),
+            Attribute::Wisdom => write!(f, "Wisdom"),
+            Attribute::Agility => write!(f, "Agility"),
+        }
     }
 }
 
@@ -52,10 +52,10 @@ fn map_attribute_name(potential_attribute_name: &str) -> Option<Attribute> {
 
 #[derive(PartialEq, Serialize, Deserialize, Clone)]
 pub struct LingeringEffect {
-    kind: LingeringEffectType,
-    name: LingeringEffectName,
-    potency: i16,
-    duration: i16,
+    pub kind: LingeringEffectType,
+    pub name: LingeringEffectName,
+    pub potency: i16,
+    pub duration: i16,
 }
 
 #[derive(PartialEq, Serialize, Deserialize, Clone)]

@@ -1,7 +1,7 @@
-use std::{any::Any, fmt, panic, str::FromStr, sync::Arc, time::Duration};
+use std::{any::Any, cmp, fmt, ops::Deref, panic, str::FromStr, sync::Arc, time::Duration};
 
 use serenity::{
-    builder::{self, CreateEmbed},
+    builder::{self, CreateComponents, CreateEmbed},
     futures::lock::Mutex,
     model::{
         prelude::{
@@ -19,7 +19,7 @@ use serenity::{
 };
 
 use super::{
-    effects::BaseEffect,
+    effects::{Attribute, BaseEffect},
     encounter::{Encounter, EncounterResult, EncounterResultName},
     player::Player,
 };
@@ -89,11 +89,16 @@ impl Display<'_> {
         self.channel.say(self.context, message_content).await;
     }
 
-    pub async fn encounter_details(&mut self, encounter: &Encounter) -> Result<String, Error> {
+    pub async fn encounter_details(
+        &mut self,
+        encounter: &Encounter,
+    ) -> Result<(String, Message), Error> {
+        let player = self.player.lock().await.clone();
+
         let message = self
             .channel
             .send_message(self.context, |message| {
-                message.embed(|emb| {
+                message.set_embed(player.into()).add_embed(|emb| {
                     emb.title(&encounter.title)
                         .description(&encounter.text)
                         .color(encounter.color.unwrap_or_default())
@@ -133,7 +138,7 @@ impl Display<'_> {
                     .custom_id
                     .clone();
 
-                Ok(choice)
+                Ok((choice, message))
             }
             Err(err) => {
                 println!("{}", err);
@@ -144,27 +149,48 @@ impl Display<'_> {
         }
     }
 
-    pub async fn encounter_result(&self, encounter: &EncounterResult) -> Result<(), Error> {
-        let player_lock = self.player.lock().await;
+    pub async fn encounter_result(
+        &self,
+        result: &EncounterResult,
+        mut message: Message,
+    ) -> Result<Message, Error> {
+        let player = self.player.lock().await;
+        let name = player.name.clone();
+        dbg!(&self.interaction.as_ref().expect("Exists!").data.custom_id);
 
-        self.interaction
-            .as_ref()
-            .expect("Interaction to exist, since this is the result of an interaction")
-            .create_interaction_response(self.context, |response| {
-                response.kind(InteractionResponseType::ChannelMessageWithSource);
-                response.interaction_response_data(|message| {
-                    message.embed(|emb| {
-                        emb.title(format!(
-                            "{} chose to {}",
-                            player_lock.name,
-                            self.interaction.as_ref().expect("Exists!").data.custom_id
-                        ))
-                    });
-                    println!("{:?}", message);
-                    message.add_embed(create_result_embed(&encounter))
+        message.embeds.remove(0);
+        message
+            .edit(self.context, |msg| {
+                msg.add_embed(|emb| {
+                    emb.title(format!(
+                        "{} chose to {}",
+                        name,
+                        self.interaction.as_ref().expect("Exists!").data.custom_id
+                    ))
                 })
+                .add_embed(|emb| {
+                    if let Some(effect) = &result.base_effect {
+                        match effect {
+                            BaseEffect::Stat(eff) => {
+                                emb.field(&eff.name, eff.potency, true);
+                            }
+                            BaseEffect::Health(eff) => {
+                                emb.field("Health", eff.potency, true);
+                            }
+                        }
+                    }
+
+                    emb.title(&result.title)
+                        .description(&result.text)
+                        .colour(match &result.kind {
+                            EncounterResultName::Success(_) => Colour::from((20, 240, 60)),
+                            EncounterResultName::Fail(_) => Colour::from((240, 40, 20)),
+                        })
+                })
+                .components(|comp| comp)
             })
-            .await
+            .await?;
+        Ok(message)
     }
 
     pub async fn request_continue(&self) -> Result<ContinueOption, Error> {
@@ -191,20 +217,27 @@ impl Display<'_> {
 
         match message {
             Ok(message) => {
+                let player = self.player.lock().await.clone();
+                let context = self.context.clone();
+
                 let interaction = message
                     .await_component_interaction(self.context)
-                    .author_id(self.player.lock().await.user)
+                    .author_id(player.user)
                     .timeout(Duration::new(60, 0))
                     .collect_limit(1)
-                    .await;
+                    .await
+                    .ok_or(Error::Other("Message interaction was not collected"))?;
 
                 println!("Message interaction awaited!\n\n");
 
-                let choice = interaction
-                    .ok_or(Error::Other("Message interaction was not collected"))?
-                    .data
-                    .custom_id
-                    .clone();
+                tokio::spawn(async move {
+                    let res = message.delete(context).await;
+                    if let Err(msg) = res {
+                        println!("{}", msg);
+                    }
+                });
+
+                let choice = interaction.data.custom_id.clone();
 
                 Ok(ContinueOption::from(choice))
             }
@@ -215,6 +248,18 @@ impl Display<'_> {
                 Err(Error::Other("Player choice resulted in an error"))
             }
         }
+    }
+
+    pub async fn send_player_info(&self) -> Result<Message, Error> {
+        let player_guard = self.player.lock().await;
+        let player: Player = player_guard.deref().clone();
+
+        self.channel
+            .send_message(self.context, |msg| {
+                msg.set_embed(player.into());
+                msg
+            })
+            .await
     }
 }
 
@@ -240,8 +285,14 @@ fn create_result_embed(result: &EncounterResult) -> CreateEmbed {
         }
     }
 
-    embed.to_owned()
+    embed
 }
+
+// fn create_player_embed(player: &Player) {
+//     let mut emebed = CreateEmbed::default();
+
+//     embed.title()
+// }
 
 pub enum ContinueOption {
     Continue,

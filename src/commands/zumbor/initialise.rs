@@ -2,9 +2,10 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use serenity::{
     futures::lock::{Mutex, MutexGuard},
+    http::Http,
     model::prelude::{
-        interaction::message_component::MessageComponentInteraction, ActivityButton, Message,
-        UserId,
+        interaction::message_component::MessageComponentInteraction, ActivityButton, ChannelId,
+        Message, UserId,
     },
     prelude::Context,
     Error,
@@ -25,7 +26,8 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 
     if running_games.get(&player_id).is_some() {
         msg.channel_id
-            .say(ctx, "You already have a Zumbor instance running you mug");
+            .say(ctx, "You already have a Zumbor instance running you mug")
+            .await?;
         return Err(Error::Other(
             "The user already has a Zumbor instance running",
         ));
@@ -48,7 +50,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
     loop {
         let mut encounter: Encounter = Encounter::new().await?;
 
-        let player_choice = display.encounter_details(&encounter).await?;
+        let (player_choice, current_message) = display.encounter_details(&encounter).await?;
 
         let encounter_option = encounter
             .options
@@ -89,7 +91,10 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 
         drop(player);
 
-        if let Err(err) = display.encounter_result(&encounter_result).await {
+        if let Err(err) = display
+            .encounter_result(&encounter_result, current_message)
+            .await
+        {
             println!("Unable to display the encounter result. {}", err);
         }
 
@@ -132,9 +137,13 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 
         let player: MutexGuard<Player> = player_mutex.lock().await;
 
-        display
-            .say(format!("{} retires for now...", player.name).as_ref())
-            .await;
+        nice_message(
+            ctx,
+            msg.channel_id,
+            "Resting...".to_owned(),
+            player.name.clone() + " takes a break",
+        )
+        .await?;
 
         // match player.save().await {
         //     Ok(_saved) => display.say("Saved Successfully").await,
@@ -200,4 +209,17 @@ async fn request_player() -> Result<Player, Error> {
         }",
     )?;
     Ok(player)
+}
+
+async fn nice_message(
+    ctx: impl AsRef<Http>,
+    channel_id: ChannelId,
+    title: String,
+    description: String,
+) -> Result<Message, Error> {
+    channel_id
+        .send_message(ctx, |msg| {
+            msg.embed(|emb| emb.title(title).description(description))
+        })
+        .await
 }

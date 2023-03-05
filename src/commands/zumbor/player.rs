@@ -1,12 +1,14 @@
+use std::cmp;
+
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use serenity::{model::prelude::UserId, Error};
+use serenity::{builder::CreateEmbed, model::prelude::UserId, Error};
 
 use derive_builder::Builder;
 
 use super::effects::{Attribute, Effectable, LingeringEffect, LingeringEffectName};
 
-#[derive(Serialize, Deserialize, Builder)]
+#[derive(Serialize, Deserialize, Builder, Clone)]
 pub struct Player {
     pub user: UserId,
     pub description: String,
@@ -61,6 +63,36 @@ impl Player {
         let value = roll + self.stats.get(stat.clone());
 
         RollResult { critical, value }
+    }
+}
+
+impl From<Player> for CreateEmbed {
+    fn from(player: Player) -> Self {
+        let mut embed = CreateEmbed::default();
+
+        // Determining color of emebed from players health
+        let current_health: u8 = player.health.try_into().unwrap_or(255);
+        let color: (u8, u8, u8) = (
+            cmp::min(cmp::max(255u8 - (current_health / 20 * 255), 0), 255),
+            cmp::max(cmp::min((current_health / 20) * 255, 255), 0),
+            0,
+        );
+
+        use Attribute::{Agility, Charisma, Strength, Wisdom};
+
+        embed
+            .author(|author| author.name(player.user))
+            .title(player.name)
+            .description(player.description)
+            .color(color)
+            .field("Score", player.score, true)
+            .field("Health", player.health, true)
+            .field(Charisma, player.stats.get(Charisma), true)
+            .field(Strength, player.stats.get(Strength), true)
+            .field(Wisdom, player.stats.get(Wisdom), true)
+            .field(Agility, player.stats.get(Agility), true);
+
+        embed
     }
 }
 
