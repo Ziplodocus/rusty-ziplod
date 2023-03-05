@@ -288,12 +288,6 @@ fn create_result_embed(result: &EncounterResult) -> CreateEmbed {
     embed
 }
 
-// fn create_player_embed(player: &Player) {
-//     let mut emebed = CreateEmbed::default();
-
-//     embed.title()
-// }
-
 pub enum ContinueOption {
     Continue,
     Rest,
