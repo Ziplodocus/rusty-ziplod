@@ -7,6 +7,7 @@ use serenity::{
     prelude::EventHandler,
     Client,
 };
+pub mod storage;
 
 #[group]
 #[commands(ping, zumbor)]

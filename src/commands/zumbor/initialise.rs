@@ -12,10 +12,12 @@ use serenity::{
 };
 use tokio::sync::broadcast::error::TryRecvError;
 
+use crate::storage;
+
 use super::{
     display::{ContinueOption, Display},
     effects::{BaseEffect, Effectable},
-    encounter::Encounter,
+    encounter::{Encounter, self},
     player::Player,
 };
 
@@ -49,6 +51,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 
     loop {
         let mut encounter: Encounter = Encounter::new().await?;
+        // let mut encounter: Encounter = encounter::get(client).await;
 
         let (player_choice, current_message) = display.encounter_details(&encounter).await?;
 

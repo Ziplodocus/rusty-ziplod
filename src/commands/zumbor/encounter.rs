@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
+use google_cloud_storage::{client::Client, http::objects::{list::ListObjectsRequest, download::Range, get::GetObjectRequest}};
+use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
+use serde_json::Error as JsonError;
 use serenity::{builder::CreateEmbed, utils::Colour, Error};
 
 use super::effects::{
@@ -114,4 +117,35 @@ impl From<EncounterResult> for CreateEmbed {
 pub enum EncounterResultName {
     Success(String),
     Fail(String),
+}
+
+
+// Return a random encounter from the storage bucket
+pub async fn get(client: Client) -> Result<Encounter, JsonError> {
+    let list_request = ListObjectsRequest {
+        bucket: "ziplod-assets".into(),
+        prefix: Some("zumbor/encounters".into()),
+        ..ListObjectsRequest::default()
+    };
+
+    let list = client.list_objects(&list_request, None).await.unwrap().items.unwrap();
+
+    let object = list.choose(&mut rand::thread_rng()).unwrap();
+
+    let request = GetObjectRequest {
+        bucket: "ziplod-assets".into(),
+        object: object.self_link.clone(),
+        ..Default::default()
+    };
+
+    let range = Range::default();
+
+    let byte_array = client.download_object(&request, &range, None).await.unwrap();
+
+    let encounter : Result<Encounter, _> = serde_json::from_slice(&byte_array);
+
+    encounter
+    // client.download_object(&GetObjectRequest {
+    //     bucket: "ziplod-assets",
+    // })
 }
