@@ -4,24 +4,24 @@ use serde::{Deserialize, Serialize};
 
 use super::player::Stats;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum BaseEffect {
     Stat(BaseStatEffect),
     Health(BaseHealthEffect),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BaseHealthEffect {
     pub potency: i16,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BaseStatEffect {
     pub name: Attribute,
     pub potency: i16,
 }
 
-#[derive(Hash, Eq, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Hash, Eq, PartialEq, Serialize, Deserialize, Clone, Debug)]
 pub enum Attribute {
     Charisma,
     Strength,
@@ -40,7 +40,7 @@ impl Display for Attribute {
     }
 }
 
-fn map_attribute_name(potential_attribute_name: &str) -> Option<Attribute> {
+pub fn map_attribute_name(potential_attribute_name: &str) -> Option<Attribute> {
     match potential_attribute_name {
         "Charisma" | "charisma" => Some(Attribute::Charisma),
         "Strength" | "strength" => Some(Attribute::Strength),
@@ -50,7 +50,7 @@ fn map_attribute_name(potential_attribute_name: &str) -> Option<Attribute> {
     }
 }
 
-#[derive(PartialEq, Serialize, Deserialize, Clone)]
+#[derive(PartialEq, Serialize, Deserialize, Clone, Debug)]
 pub struct LingeringEffect {
     pub kind: LingeringEffectType,
     pub name: LingeringEffectName,
@@ -58,14 +58,14 @@ pub struct LingeringEffect {
     pub duration: i16,
 }
 
-#[derive(PartialEq, Serialize, Deserialize, Clone)]
+#[derive(PartialEq, Serialize, Deserialize, Clone, Debug)]
 pub enum LingeringEffectName {
     Stat(Attribute),
     Poison,
     Regenerate,
 }
 
-#[derive(PartialEq, Serialize, Deserialize, Clone)]
+#[derive(PartialEq, Serialize, Deserialize, Clone, Debug)]
 pub enum LingeringEffectType {
     Buff,
     Debuff,
