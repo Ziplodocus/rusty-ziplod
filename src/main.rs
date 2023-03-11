@@ -40,7 +40,6 @@ async fn main() {
     {
         let mut data = client.data.write().await;
 
-        let config_default = GoogClientConfig::default();
         let storage_config = match GoogClientConfig::default().with_auth().await {
             Ok(thing) => thing,
             Err(err) => {
