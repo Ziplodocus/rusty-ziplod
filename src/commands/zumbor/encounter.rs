@@ -1,14 +1,23 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, num::ParseIntError, sync::Arc};
 
 use google_cloud_storage::{
     client::Client,
-    http::objects::{download::Range, get::GetObjectRequest, list::ListObjectsRequest},
+    http::objects::{
+        download::Range,
+        get::GetObjectRequest,
+        list::ListObjectsRequest,
+        upload::{Media, UploadObjectRequest, UploadType},
+    },
 };
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
-use serde_json::{Error as JsonError, Value};
+use serde_json::{Error as JsonError, Map, Value};
 use serenity::{
-    builder::CreateEmbed, futures::lock::MutexGuard, prelude::Context, utils::Colour, Error,
+    builder::CreateEmbed,
+    futures::lock::MutexGuard,
+    prelude::Context,
+    utils::{Color, Colour},
+    Error,
 };
 
 use crate::{commands::zumbor::effects::map_attribute_name, StorageClient};
@@ -127,7 +136,7 @@ pub enum EncounterResultName {
 }
 
 // Return a random encounter from the storage bucket
-pub async fn get(ctx: &Context) -> Result<Encounter, JsonError> {
+pub async fn get(ctx: &Context) -> Result<Encounter, Error> {
     let data = ctx.data.read().await;
 
     let storage_client = data.get::<StorageClient>().unwrap();
@@ -170,40 +179,21 @@ pub async fn get(ctx: &Context) -> Result<Encounter, JsonError> {
 
     let enc: Value = serde_json::from_slice(&byte_array).unwrap();
 
+    // dbg!(enc.clone());
+
     let mut options: HashMap<String, EncounterOption> = HashMap::new();
 
     if let Value::Object(options_map) = enc["options"].clone() {
         for (key, value) in options_map {
-            dbg!(value.clone());
-
             let success_result = if let Value::Object(res) = value["Success"].clone() {
-                let effect = res["baseEffect"]
-                    .as_object()
-                    .expect("result to have a baseEffect");
-
-                let base_effect = match effect["name"].as_str().expect("name is a string") {
-                    "Heal" => Some(BaseEffect::Health(BaseHealthEffect {
-                        potency: effect["potency"].as_u64().unwrap().try_into().unwrap(),
-                    })),
-                    "Damage" => Some(BaseEffect::Health(BaseHealthEffect {
-                        potency: effect["potency"].as_u64().unwrap().try_into().unwrap(),
-                    })),
-                    _ => match map_attribute_name(
-                        effect["name"].as_str().expect("Name to be a string"),
-                    ) {
-                        Some(name) => Some(BaseEffect::Stat(BaseStatEffect {
-                            name,
-                            potency: effect["potency"].as_i64().unwrap().try_into().unwrap(),
-                        })),
-                        None => None,
-                    },
-                };
+                dbg!(res.clone());
+                dbg!(res.get("baseEffect"));
 
                 EncounterResult {
                     kind: EncounterResultName::Success(res["type"].as_str().unwrap().to_string()),
                     title: res["title"].as_str().unwrap().into(),
                     text: res["text"].as_str().unwrap().into(),
-                    base_effect,
+                    base_effect: json_base_effect_to_struct(res),
                     lingering_effect: None,
                 }
             } else {
@@ -215,7 +205,7 @@ pub async fn get(ctx: &Context) -> Result<Encounter, JsonError> {
                     kind: EncounterResultName::Fail(res["type"].as_str().unwrap().to_string()),
                     title: res["title"].as_str().unwrap().into(),
                     text: res["text"].as_str().unwrap().into(),
-                    base_effect: None,
+                    base_effect: json_base_effect_to_struct(res),
                     lingering_effect: None,
                 }
             } else {
@@ -233,20 +223,106 @@ pub async fn get(ctx: &Context) -> Result<Encounter, JsonError> {
         }
     }
 
+    let color = match &enc["color"] {
+        Value::String(val) => hex_to_colour(val.as_ref()),
+        _ => hex_to_colour("#000000"),
+    };
+
     let encounter = Encounter {
         title: enc["title"].to_string(),
         text: enc["text"].to_string(),
-        color: Some(Colour::BLURPLE),
+        color: Some(color),
         options,
     };
 
-    dbg!(encounter);
+    // dbg!(encounter.clone());
 
-    panic!();
+    let upload_request = UploadObjectRequest {
+        bucket: "ziplod-assets".into(),
+        ..Default::default()
+    };
+
+    let encounter_json: String =
+        serde_json::to_string(&encounter).map_err(|err| Error::from(err))?;
+
+    let encounter_name = object
+        .name
+        .as_str()
+        .replace("/encounters/", "/encounters/v2/");
+
+    // dbg!(encounter_name);
+
+    let upload_media = Media::new(encounter_name);
+
+    // client
+    //     .upload_object(
+    //         &upload_request,
+    //         encounter_json,
+    //         &UploadType::Simple(upload_media),
+    //         Default::default(),
+    //     )
+    //     .await
+    //     .map_err(|err| {
+    //         dbg!(err);
+    //         Error::Other("Failed to upload object")
+    //     })?;
+
     Ok(encounter)
 
     // encounter
     // client.download_object(&GetObjectRequest {
     //     bucket: "ziplod-assets",
     // })
+}
+
+fn hex_to_colour(hex: &str) -> Colour {
+    let hex_str = &hex[1..];
+    Colour::from(u64::from_str_radix(hex_str, 16).expect("Incorrect format"))
+}
+
+fn json_base_effect_to_struct(map: Map<String, Value>) -> Option<BaseEffect> {
+    let effect = map
+        .get("baseEffect")
+        .and_then(|val| Some(val.as_object().expect("baseEffect to be an object")));
+
+    effect.and_then(
+        |effect| match effect["name"].as_str().expect("name is a string") {
+            "Heal" => Some(BaseEffect::Health(BaseHealthEffect {
+                potency: effect["potency"].as_u64().unwrap().try_into().unwrap(),
+            })),
+            "Damage" => Some(BaseEffect::Health(BaseHealthEffect {
+                potency: effect["potency"].as_u64().unwrap().try_into().unwrap(),
+            })),
+            _ => match map_attribute_name(effect["name"].as_str().expect("Name to be a string")) {
+                Some(name) => Some(BaseEffect::Stat(BaseStatEffect {
+                    name,
+                    potency: effect["potency"].as_i64().unwrap().try_into().unwrap(),
+                })),
+                None => None,
+            },
+        },
+    )
+}
+fn json_lingering_effect_to_struct(map: Map<String, Value>) -> Option<LingeringEffect> {
+    let effect = map
+        .get("baseEffect")
+        .and_then(|val| Some(val.as_object().expect("baseEffect to be an object")));
+
+    effect.and_then(
+        |effect| match effect["name"].as_str().expect("name is a string") {
+            "Heal" => Some(BaseEffect::Health(BaseHealthEffect {
+                potency: effect["potency"].as_u64().unwrap().try_into().unwrap(),
+            })),
+            "Damage" => Some(BaseEffect::Health(BaseHealthEffect {
+                potency: effect["potency"].as_u64().unwrap().try_into().unwrap(),
+            })),
+            _ => match map_attribute_name(effect["name"].as_str().expect("Name to be a string")) {
+                Some(name) => Some(BaseEffect::Stat(BaseStatEffect {
+                    name,
+                    potency: effect["potency"].as_i64().unwrap().try_into().unwrap(),
+                })),
+                None => None,
+            },
+        },
+    )
 }

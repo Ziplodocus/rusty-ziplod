@@ -68,7 +68,10 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             &mut encounter_option.fail
         };
 
+        // dbg!(encounter_result.clone());
+
         if let Some(effect) = &mut encounter_result.base_effect {
+            // dbg!(effect.clone());
             match effect {
                 BaseEffect::Stat(eff) => {
                     if player_roll.critical {

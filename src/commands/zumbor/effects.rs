@@ -80,6 +80,7 @@ pub trait Effectable {
     fn set_stats(&mut self, stats: Stats);
 
     fn affect(&mut self, effect: &BaseEffect) {
+        println!("Bing affected by {:?}", effect);
         match effect {
             BaseEffect::Health(eff) => self.affect_health(eff),
             BaseEffect::Stat(eff) => self.affect_stat(eff),
@@ -87,7 +88,14 @@ pub trait Effectable {
     }
 
     fn affect_health(&mut self, effect: &BaseHealthEffect) {
+        println!(
+            "Current Health {} changed by {}",
+            self.get_health(),
+            effect.potency
+        );
         self.set_health(self.get_health() + effect.potency);
+
+        println!("After Health: {}", self.get_health());
     }
 
     fn affect_stat(&mut self, effect: &BaseStatEffect) {
