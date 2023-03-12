@@ -1,4 +1,4 @@
-use std::cmp;
+use std::{cmp, thread::current};
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -72,6 +72,7 @@ impl From<Player> for CreateEmbed {
 
         // Determining color of emebed from players health
         let current_health: u8 = player.health.try_into().unwrap_or(255);
+        dbg!(current_health);
         let color: (u8, u8, u8) = (
             cmp::min(cmp::max(255u8 - (current_health / 20 * 255), 0), 255),
             cmp::max(cmp::min((current_health / 20) * 255, 255), 0),

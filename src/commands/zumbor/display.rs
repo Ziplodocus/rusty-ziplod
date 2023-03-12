@@ -1,4 +1,7 @@
-use std::{any::Any, cmp, fmt, ops::Deref, panic, str::FromStr, sync::Arc, time::Duration};
+use std::{
+    any::Any, cmp, collections::VecDeque, fmt, ops::Deref, panic, str::FromStr, sync::Arc,
+    time::Duration,
+};
 
 use serenity::{
     builder::{self, CreateComponents, CreateEmbed},
@@ -30,6 +33,7 @@ pub struct Display<'a> {
     channel: ChannelId,
     player: &'a Mutex<Player>,
     interaction: Option<Arc<MessageComponentInteraction>>,
+    messages: VecDeque<CreateEmbed>,
 }
 
 #[derive(Default)]
@@ -76,6 +80,7 @@ impl<'a> DisplayBuilder<'a> {
                 .channel
                 .expect("Channel should be added to the builder before building"),
             interaction: None,
+            messages: VecDeque::new(),
         }
     }
 }
@@ -150,15 +155,17 @@ impl Display<'_> {
     }
 
     pub async fn encounter_result(
-        &self,
+        &mut self,
         result: &EncounterResult,
         mut message: Message,
     ) -> Result<Message, Error> {
         let player = self.player.lock().await;
         let name = player.name.clone();
-        dbg!(&self.interaction.as_ref().expect("Exists!").data.custom_id);
 
         message.embeds.remove(0);
+
+        println!("Messages: {:?}", self.messages);
+
         message
             .edit(self.context, |msg| {
                 msg.add_embed(|emb| {
@@ -187,6 +194,7 @@ impl Display<'_> {
                             EncounterResultName::Fail(_) => Colour::from((240, 40, 20)),
                         })
                 })
+                .add_embeds(self.get_queued_messages().into_iter().collect())
                 .components(|comp| comp)
             })
             .await?;
@@ -213,8 +221,6 @@ impl Display<'_> {
             })
             .await;
 
-        println!("Requsting continue!");
-
         match message {
             Ok(message) => {
                 let player = self.player.lock().await.clone();
@@ -227,8 +233,6 @@ impl Display<'_> {
                     .collect_limit(1)
                     .await
                     .ok_or(Error::Other("Message interaction was not collected"))?;
-
-                println!("Message interaction awaited!\n\n");
 
                 tokio::spawn(async move {
                     let res = message.delete(context).await;
@@ -260,6 +264,17 @@ impl Display<'_> {
                 msg
             })
             .await
+    }
+
+    pub fn queue_message(&mut self, message: CreateEmbed) {
+        self.messages.push_back(message);
+    }
+
+    /**
+     * Replaces self.messages with an empty vec and returns ownership of the queued messages vector
+     */
+    pub fn get_queued_messages(&mut self) -> VecDeque<CreateEmbed> {
+        std::mem::take(&mut self.messages)
     }
 }
 

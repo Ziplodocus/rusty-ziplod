@@ -173,28 +173,25 @@ pub async fn get(ctx: &Context) -> Result<Encounter, Error> {
 
     let encounter: Result<Encounter, _> = serde_json::from_slice(&byte_array);
 
+    // V2 encounters should be serializable straight to a struct
     if let Ok(encounter) = encounter {
         return Ok(encounter);
     }
 
+    // Handles previous versions of the Encounter object
     let enc: Value = serde_json::from_slice(&byte_array).unwrap();
-
-    // dbg!(enc.clone());
 
     let mut options: HashMap<String, EncounterOption> = HashMap::new();
 
     if let Value::Object(options_map) = enc["options"].clone() {
         for (key, value) in options_map {
             let success_result = if let Value::Object(res) = value["Success"].clone() {
-                dbg!(res.clone());
-                dbg!(res.get("baseEffect"));
-
                 EncounterResult {
                     kind: EncounterResultName::Success(res["type"].as_str().unwrap().to_string()),
                     title: res["title"].as_str().unwrap().into(),
                     text: res["text"].as_str().unwrap().into(),
-                    base_effect: json_base_effect_to_struct(res),
-                    lingering_effect: None,
+                    base_effect: json_base_effect_to_struct(res.clone()),
+                    lingering_effect: json_lingering_effect_to_struct(res),
                 }
             } else {
                 panic!("Success result should be an object");
@@ -205,8 +202,8 @@ pub async fn get(ctx: &Context) -> Result<Encounter, Error> {
                     kind: EncounterResultName::Fail(res["type"].as_str().unwrap().to_string()),
                     title: res["title"].as_str().unwrap().into(),
                     text: res["text"].as_str().unwrap().into(),
-                    base_effect: json_base_effect_to_struct(res),
-                    lingering_effect: None,
+                    base_effect: json_base_effect_to_struct(res.clone()),
+                    lingering_effect: json_lingering_effect_to_struct(res),
                 }
             } else {
                 panic!("Success result should be an object");
@@ -254,19 +251,20 @@ pub async fn get(ctx: &Context) -> Result<Encounter, Error> {
 
     let upload_media = Media::new(encounter_name);
 
-    // client
-    //     .upload_object(
-    //         &upload_request,
-    //         encounter_json,
-    //         &UploadType::Simple(upload_media),
-    //         Default::default(),
-    //     )
-    //     .await
-    //     .map_err(|err| {
-    //         dbg!(err);
-    //         Error::Other("Failed to upload object")
-    //     })?;
+    client
+        .upload_object(
+            &upload_request,
+            encounter_json,
+            &UploadType::Simple(upload_media),
+            Default::default(),
+        )
+        .await
+        .map_err(|err| {
+            dbg!(err);
+            Error::Other("Failed to upload object")
+        })?;
 
+    println!("{:?}", encounter);
     Ok(encounter)
 
     // encounter
@@ -291,7 +289,8 @@ fn json_base_effect_to_struct(map: Map<String, Value>) -> Option<BaseEffect> {
                 potency: effect["potency"].as_u64().unwrap().try_into().unwrap(),
             })),
             "Damage" => Some(BaseEffect::Health(BaseHealthEffect {
-                potency: effect["potency"].as_u64().unwrap().try_into().unwrap(),
+                potency: -1
+                    * <i64 as TryInto<i16>>::try_into(effect["potency"].as_i64().unwrap()).unwrap(),
             })),
             _ => match map_attribute_name(effect["name"].as_str().expect("Name to be a string")) {
                 Some(name) => Some(BaseEffect::Stat(BaseStatEffect {
@@ -303,24 +302,65 @@ fn json_base_effect_to_struct(map: Map<String, Value>) -> Option<BaseEffect> {
         },
     )
 }
+
 fn json_lingering_effect_to_struct(map: Map<String, Value>) -> Option<LingeringEffect> {
     let effect = map
-        .get("baseEffect")
-        .and_then(|val| Some(val.as_object().expect("baseEffect to be an object")));
+        .get("addtionalEffect")
+        .and_then(|val| Some(val.as_object().expect("additionalEffect to be an object")));
+
+    println!("{:?}", effect);
 
     effect.and_then(
         |effect| match effect["name"].as_str().expect("name is a string") {
-            "Heal" => Some(BaseEffect::Health(BaseHealthEffect {
-                potency: effect["potency"].as_u64().unwrap().try_into().unwrap(),
-            })),
-            "Damage" => Some(BaseEffect::Health(BaseHealthEffect {
-                potency: effect["potency"].as_u64().unwrap().try_into().unwrap(),
-            })),
+            "Poison" => Some(LingeringEffect {
+                kind: LingeringEffectType::Debuff,
+                name: LingeringEffectName::Poison,
+                duration: effect["duration"]
+                    .as_u64()
+                    .expect("duration to be a number")
+                    .try_into()
+                    .expect("Should be small enough to convert to a 16 bit signed integer"),
+                potency: effect["potency"]
+                    .as_u64()
+                    .expect("potency to be a number")
+                    .try_into()
+                    .expect("Should be small enough to convert to a 16 bit signed integer"),
+            }),
+            "Regenerate" => Some(LingeringEffect {
+                kind: LingeringEffectType::Debuff,
+                name: LingeringEffectName::Poison,
+                duration: effect["duration"]
+                    .as_u64()
+                    .expect("duration to be a number")
+                    .try_into()
+                    .expect("Should be small enough to convert to a 16 bit signed integer"),
+                potency: effect["potency"]
+                    .as_u64()
+                    .expect("potency to be a number")
+                    .try_into()
+                    .expect("Should be small enough to convert to a 16 bit signed integer"),
+            }),
             _ => match map_attribute_name(effect["name"].as_str().expect("Name to be a string")) {
-                Some(name) => Some(BaseEffect::Stat(BaseStatEffect {
-                    name,
-                    potency: effect["potency"].as_i64().unwrap().try_into().unwrap(),
-                })),
+                Some(name) => Some(LingeringEffect {
+                    kind: LingeringEffectType::try_from(
+                        effect["type"].as_str().expect("type to be a string"),
+                    )
+                    .unwrap_or_else(|err| {
+                        println!("Using deafult buff type. {}", err);
+                        LingeringEffectType::Buff
+                    }),
+                    name: LingeringEffectName::Stat(name),
+                    duration: effect["duration"]
+                        .as_u64()
+                        .expect("duration to be a number")
+                        .try_into()
+                        .expect("Should be small enough to convert to a 16 bit signed integer"),
+                    potency: effect["potency"]
+                        .as_u64()
+                        .expect("potency to be a number")
+                        .try_into()
+                        .expect("Should be small enough to convert to a 16 bit signed integer"),
+                }),
                 None => None,
             },
         },

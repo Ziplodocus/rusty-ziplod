@@ -1,6 +1,7 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 
 use serenity::{
+    builder::CreateEmbed,
     futures::lock::{Mutex, MutexGuard},
     http::Http,
     model::prelude::{
@@ -16,7 +17,7 @@ use crate::StorageClient;
 
 use super::{
     display::{ContinueOption, Display},
-    effects::{BaseEffect, Effectable},
+    effects::{BaseEffect, Effectable, LingeringEffect},
     encounter::{self, Encounter},
     player::Player,
 };
@@ -47,7 +48,6 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         .context(ctx)
         .player(&player_mutex)
         .build();
-    // initialise_player_events(player, display);
 
     loop {
         let mut encounter: Encounter = encounter::get(ctx).await?;
@@ -88,9 +88,18 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         }
 
         if let Some(effect) = encounter_result.lingering_effect.clone() {
+            println!("Added lingering effect: {}", effect.name);
+            display.queue_message(effect.clone().into());
             player.add_effect(effect)
         }
 
+        for effect in player.get_effects() {
+            if effect.duration == 1 {
+                let mut end_embed: CreateEmbed = effect.clone().into();
+                end_embed.title(format!("{} {} has expired", effect.name, effect.kind));
+                display.queue_message(end_embed);
+            }
+        }
         player.apply_effects();
         player.add_score(1);
 

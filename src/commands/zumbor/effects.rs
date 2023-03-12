@@ -1,6 +1,7 @@
 use std::fmt::{self, Display};
 
 use serde::{Deserialize, Serialize};
+use serenity::builder::CreateEmbed;
 
 use super::player::Stats;
 
@@ -58,6 +59,26 @@ pub struct LingeringEffect {
     pub duration: i16,
 }
 
+impl From<LingeringEffect> for CreateEmbed {
+    fn from(effect: LingeringEffect) -> Self {
+        let LingeringEffect {
+            name,
+            kind,
+            potency,
+            duration,
+        } = effect;
+
+        let mut embed = CreateEmbed::default();
+
+        embed
+            .title(format!("{} {}", name, kind))
+            .field("Potency", potency, true)
+            .field("Duration", duration, true);
+
+        embed
+    }
+}
+
 #[derive(PartialEq, Serialize, Deserialize, Clone, Debug)]
 pub enum LingeringEffectName {
     Stat(Attribute),
@@ -65,10 +86,40 @@ pub enum LingeringEffectName {
     Regenerate,
 }
 
+impl Display for LingeringEffectName {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Stat(attr) => write!(f, "{}", attr),
+            Self::Poison => write!(f, "poison"),
+            Self::Regenerate => write!(f, "regnerate"),
+        }
+    }
+}
+
 #[derive(PartialEq, Serialize, Deserialize, Clone, Debug)]
 pub enum LingeringEffectType {
     Buff,
     Debuff,
+}
+
+impl Display for LingeringEffectType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Buff => write!(f, "buff"),
+            Self::Debuff => write!(f, "debuff"),
+        }
+    }
+}
+
+impl TryFrom<&str> for LingeringEffectType {
+    type Error = String;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "Buff" | "buff" => Ok(LingeringEffectType::Buff),
+            "Debuff" | "debuff" => Ok(LingeringEffectType::Debuff),
+            _ => Err("String is not related to a lingering effect type".into()),
+        }
+    }
 }
 
 pub trait Effectable {
@@ -80,7 +131,7 @@ pub trait Effectable {
     fn set_stats(&mut self, stats: Stats);
 
     fn affect(&mut self, effect: &BaseEffect) {
-        println!("Bing affected by {:?}", effect);
+        println!("Player affected by {:?}", effect);
         match effect {
             BaseEffect::Health(eff) => self.affect_health(eff),
             BaseEffect::Stat(eff) => self.affect_stat(eff),
@@ -93,6 +144,7 @@ pub trait Effectable {
             self.get_health(),
             effect.potency
         );
+
         self.set_health(self.get_health() + effect.potency);
 
         println!("After Health: {}", self.get_health());
