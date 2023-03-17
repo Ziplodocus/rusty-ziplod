@@ -36,55 +36,6 @@ pub struct Display<'a> {
     messages: VecDeque<CreateEmbed>,
 }
 
-#[derive(Default)]
-pub struct DisplayBuilder<'a> {
-    context: Option<&'a Context>,
-    user: Option<UserId>,
-    channel: Option<ChannelId>,
-    player: Option<&'a Mutex<Player>>,
-}
-
-impl<'a> DisplayBuilder<'a> {
-    pub fn context(mut self, context: &'a Context) -> Self {
-        self.context = Some(&context);
-        self
-    }
-
-    pub fn user(mut self, user: UserId) -> Self {
-        self.user = Some(user);
-        self
-    }
-
-    pub fn channel(mut self, channel: ChannelId) -> Self {
-        self.channel = Some(channel);
-        self
-    }
-
-    pub fn player(mut self, player: &'a Mutex<Player>) -> Self {
-        self.player = Some(player);
-        self
-    }
-
-    pub fn build(self) -> Display<'a> {
-        Display {
-            player: self
-                .player
-                .expect("Player should be added to the builder before building"),
-            context: self
-                .context
-                .expect("Context should be added to the builder before building"),
-            user: self
-                .user
-                .expect("User should be added to the builder before building"),
-            channel: self
-                .channel
-                .expect("Channel should be added to the builder before building"),
-            interaction: None,
-            messages: VecDeque::new(),
-        }
-    }
-}
-
 impl Display<'_> {
     pub fn builder() -> DisplayBuilder<'static> {
         DisplayBuilder::default()
@@ -129,11 +80,9 @@ impl Display<'_> {
                 self.interaction = message
                     .await_component_interaction(self.context)
                     .author_id(self.player.lock().await.user)
-                    .timeout(Duration::new(60, 0))
+                    .timeout(Duration::new(120, 0))
                     .collect_limit(1)
                     .await;
-
-                println!("Message interaction awaited!\n\n");
 
                 let choice = self
                     .interaction
@@ -147,7 +96,7 @@ impl Display<'_> {
             }
             Err(err) => {
                 println!("{}", err);
-                self.say("Something went wrong retrieving the player choice")
+                self.say("Something went wrong sending encounter details")
                     .await;
                 Err(Error::Other("Player choice resulted in an error"))
             }
@@ -229,7 +178,7 @@ impl Display<'_> {
                 let interaction = message
                     .await_component_interaction(self.context)
                     .author_id(player.user)
-                    .timeout(Duration::new(60, 0))
+                    .timeout(Duration::new(120, 0))
                     .collect_limit(1)
                     .await
                     .ok_or(Error::Other("Message interaction was not collected"))?;
@@ -267,7 +216,9 @@ impl Display<'_> {
     }
 
     pub fn queue_message(&mut self, message: CreateEmbed) {
+        dbg!(message.clone());
         self.messages.push_back(message);
+        dbg!(self.messages.clone());
     }
 
     /**
@@ -275,6 +226,55 @@ impl Display<'_> {
      */
     pub fn get_queued_messages(&mut self) -> VecDeque<CreateEmbed> {
         std::mem::take(&mut self.messages)
+    }
+}
+
+#[derive(Default)]
+pub struct DisplayBuilder<'a> {
+    context: Option<&'a Context>,
+    user: Option<UserId>,
+    channel: Option<ChannelId>,
+    player: Option<&'a Mutex<Player>>,
+}
+
+impl<'a> DisplayBuilder<'a> {
+    pub fn context(mut self, context: &'a Context) -> Self {
+        self.context = Some(&context);
+        self
+    }
+
+    pub fn user(mut self, user: UserId) -> Self {
+        self.user = Some(user);
+        self
+    }
+
+    pub fn channel(mut self, channel: ChannelId) -> Self {
+        self.channel = Some(channel);
+        self
+    }
+
+    pub fn player(mut self, player: &'a Mutex<Player>) -> Self {
+        self.player = Some(player);
+        self
+    }
+
+    pub fn build(self) -> Display<'a> {
+        Display {
+            player: self
+                .player
+                .expect("Player should be added to the builder before building"),
+            context: self
+                .context
+                .expect("Context should be added to the builder before building"),
+            user: self
+                .user
+                .expect("User should be added to the builder before building"),
+            channel: self
+                .channel
+                .expect("Channel should be added to the builder before building"),
+            interaction: None,
+            messages: VecDeque::new(),
+        }
     }
 }
 

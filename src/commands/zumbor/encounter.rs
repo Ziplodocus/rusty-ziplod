@@ -36,16 +36,16 @@ pub struct Encounter {
 }
 
 impl Encounter {
-    pub async fn new() -> Result<Self, Error> {
+    pub fn new() -> Self {
         let mut options = HashMap::new();
         options.insert("Win".into(), EncounterOption::default());
 
-        Ok(Encounter {
+        Encounter {
             title: "hey".to_owned(),
             text: "yeah".to_owned(),
             color: None,
             options,
-        })
+        }
     }
 }
 
@@ -64,30 +64,27 @@ impl Default for EncounterOption {
             stat: Attribute::Strength,
             success: EncounterResult {
                 kind: EncounterResultName::Success("Oh no".into()),
-                title: "You gone fucked up".into(),
+                title: "You gone Wonned it!".into(),
                 text: "But nothing bad has happened".into(),
-                base_effect: Some(BaseEffect::Stat(BaseStatEffect {
-                    name: Attribute::Charisma,
-                    potency: 2,
-                })),
-                lingering_effect: None, // Some(LingeringEffect {
-                                        //     kind: LingeringEffectType::Buff,
-                                        //     name: LingeringEffectName::Stat(Attribute::Strength),
-                                        //     potency: 5,
-                                        //     duration: 4,
-                                        // }),
+                base_effect: Some(BaseEffect::Health(BaseHealthEffect { potency: -2 })),
+                lingering_effect: Some(LingeringEffect {
+                    kind: LingeringEffectType::Buff,
+                    name: LingeringEffectName::Stat(Attribute::Strength),
+                    potency: 3,
+                    duration: 4,
+                }),
             },
             fail: EncounterResult {
                 kind: EncounterResultName::Success("Oh no".into()),
                 title: "You gone fucked up".into(),
                 text: "But something bad has happened".into(),
                 base_effect: Some(BaseEffect::Health(BaseHealthEffect { potency: 5 })),
-                lingering_effect: None, // Some(LingeringEffect {
-                                        //     kind: LingeringEffectType::Buff,
-                                        //     name: LingeringEffectName::Poison,
-                                        //     potency: 5,
-                                        //     duration: 4,
-                                        // }),
+                lingering_effect: Some(LingeringEffect {
+                    kind: LingeringEffectType::Debuff,
+                    name: LingeringEffectName::Poison,
+                    potency: 3,
+                    duration: 4,
+                }),
             },
         }
     }

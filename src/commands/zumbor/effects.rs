@@ -1,7 +1,7 @@
 use std::fmt::{self, Display};
 
 use serde::{Deserialize, Serialize};
-use serenity::builder::CreateEmbed;
+use serenity::{builder::CreateEmbed, utils::Colour};
 
 use super::player::Stats;
 
@@ -72,6 +72,7 @@ impl From<LingeringEffect> for CreateEmbed {
 
         embed
             .title(format!("{} {}", name, kind))
+            .colour::<Colour>(name.into())
             .field("Potency", potency, true)
             .field("Duration", duration, true);
 
@@ -90,8 +91,23 @@ impl Display for LingeringEffectName {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Stat(attr) => write!(f, "{}", attr),
-            Self::Poison => write!(f, "poison"),
-            Self::Regenerate => write!(f, "regnerate"),
+            Self::Poison => write!(f, "Poison"),
+            Self::Regenerate => write!(f, "Regnerate"),
+        }
+    }
+}
+
+impl From<LingeringEffectName> for Colour {
+    fn from(effect_name: LingeringEffectName) -> Self {
+        match effect_name {
+            LingeringEffectName::Poison => Colour::PURPLE,
+            LingeringEffectName::Regenerate => Colour::FABLED_PINK,
+            LingeringEffectName::Stat(attr) => match attr {
+                Attribute::Strength => Colour::DARK_RED,
+                Attribute::Wisdom => Colour::DARK_GREEN,
+                Attribute::Agility => Colour::BLITZ_BLUE,
+                Attribute::Charisma => Colour::DARK_GOLD,
+            },
         }
     }
 }

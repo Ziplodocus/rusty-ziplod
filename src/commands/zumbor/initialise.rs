@@ -50,7 +50,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         .build();
 
     loop {
-        let mut encounter: Encounter = encounter::get(ctx).await?;
+        let mut encounter: Encounter = Encounter::new(); //encounter::get(ctx).await?;
 
         let (player_choice, current_message) = display.encounter_details(&encounter).await?;
 
