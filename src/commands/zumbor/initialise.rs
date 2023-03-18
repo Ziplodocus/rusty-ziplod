@@ -4,47 +4,45 @@ use serenity::{
     builder::CreateEmbed,
     futures::lock::{Mutex, MutexGuard},
     http::Http,
-    model::prelude::{
-        interaction::message_component::MessageComponentInteraction, ActivityButton, ChannelId,
-        Message, UserId,
+    model::{
+        prelude::{ChannelId, Message, UserId},
+        user::User,
     },
     prelude::Context,
     Error,
 };
-use tokio::sync::broadcast::error::TryRecvError;
-
-use crate::StorageClient;
 
 use super::{
     display::{ContinueOption, Display},
-    effects::{BaseEffect, Effectable, LingeringEffect},
-    encounter::{self, Encounter},
-    player::Player,
+    effects::{BaseEffect, Effectable},
+    encounter::Encounter,
+    player::{self, Player, Stats},
 };
 
 pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
-    let mut running_games: HashMap<UserId, bool> = HashMap::new();
+    // let mut running_games: HashMap<UserId, bool> = HashMap::new();
 
-    let player_id: UserId = msg.author.id;
+    let user: &User = &msg.author;
 
-    if running_games.get(&player_id).is_some() {
-        msg.channel_id
-            .say(ctx, "You already have a Zumbor instance running you mug")
-            .await?;
-        return Err(Error::Other(
-            "The user already has a Zumbor instance running",
-        ));
-    }
+    // if running_games.get(&user.id).is_some() {
+    //     msg.channel_id
+    //         .say(ctx, "You already have a Zumbor instance running you mug")
+    //         .await?;
+    //     return Err(Error::Other(
+    //         "The user already has a Zumbor instance running",
+    //     ));
+    // }
 
-    running_games.insert(player_id, true);
+    // running_games.insert(user.id, true);
 
-    let player: Player = Player::load(player_id).await.or(request_player().await)?;
+    let player: Player = player::get(ctx, user.tag())
+        .await
+        .or(request_player(user))?;
 
     let player_mutex: Mutex<Player> = Mutex::new(player);
 
     let mut display: Display = Display::builder()
         .channel(msg.channel_id)
-        .user(player_id)
         .context(ctx)
         .player(&player_mutex)
         .build();
@@ -132,7 +130,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             //     }
             // };
 
-            running_games.remove(&player_id);
+            // running_games.remove(&user.id);
             // let result = player.remove();
             // if let Err(err) = result.await {
             //     println!("{}", err);
@@ -175,7 +173,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         //     }
         // }
 
-        running_games.remove(&player_id);
+        // running_games.remove(&user.id);
 
         break;
     }
@@ -203,26 +201,21 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 //     });
 // }
 
-async fn request_player() -> Result<Player, Error> {
-    let player: Player = serde_json::from_str(
-        "{
-            user: {
-                0: 1
-            },
-            description: 'Really good looking',
-            name: 'Handsome Jack',
-            health: '20',
-            score: '0',
-            stats: {
-                charisma: '10',
-                strength: '3',
-                wisdom: '2',
-                agility: '1',
-            },
-            effects: [],
-        }",
-    )?;
-    Ok(player)
+fn request_player<'a>(user: &User) -> Result<Player, Error> {
+    Ok(Player {
+        tag: user.tag(),
+        description: "Really good looking".to_string(),
+        name: "Handsome Jack".to_string(),
+        health: 20,
+        score: 0,
+        stats: Stats {
+            charisma: 10,
+            strength: 3,
+            wisdom: 2,
+            agility: 1,
+        },
+        effects: Vec::new(),
+    })
 }
 
 async fn nice_message(

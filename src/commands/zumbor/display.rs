@@ -29,7 +29,6 @@ use super::{
 
 pub struct Display<'a> {
     context: &'a Context,
-    user: UserId,
     channel: ChannelId,
     player: &'a Mutex<Player>,
     interaction: Option<Arc<MessageComponentInteraction>>,
@@ -50,6 +49,7 @@ impl Display<'_> {
         encounter: &Encounter,
     ) -> Result<(String, Message), Error> {
         let player = self.player.lock().await.clone();
+        let user_tag = player.tag.clone();
 
         let message = self
             .channel
@@ -79,7 +79,7 @@ impl Display<'_> {
             Ok(message) => {
                 self.interaction = message
                     .await_component_interaction(self.context)
-                    .author_id(self.player.lock().await.user)
+                    .filter(move |interaction| interaction.user.tag() == user_tag)
                     .timeout(Duration::new(120, 0))
                     .collect_limit(1)
                     .await;
@@ -112,8 +112,6 @@ impl Display<'_> {
         let name = player.name.clone();
 
         message.embeds.remove(0);
-
-        println!("Messages: {:?}", self.messages);
 
         message
             .edit(self.context, |msg| {
@@ -151,7 +149,7 @@ impl Display<'_> {
     }
 
     pub async fn request_continue(&self) -> Result<ContinueOption, Error> {
-        println!("Requsting continue!");
+        println!("Requesting continue!");
         let message = self
             .channel
             .send_message(self.context, |message| {
@@ -172,12 +170,15 @@ impl Display<'_> {
 
         match message {
             Ok(message) => {
-                let player = self.player.lock().await.clone();
                 let context = self.context.clone();
+
+                let player_guard = self.player.lock().await;
+                let user_tag: String = player_guard.deref().tag.clone();
+                drop(player_guard);
 
                 let interaction = message
                     .await_component_interaction(self.context)
-                    .author_id(player.user)
+                    .filter(move |interaction| interaction.user.tag() == user_tag)
                     .timeout(Duration::new(120, 0))
                     .collect_limit(1)
                     .await
@@ -216,9 +217,7 @@ impl Display<'_> {
     }
 
     pub fn queue_message(&mut self, message: CreateEmbed) {
-        dbg!(message.clone());
         self.messages.push_back(message);
-        dbg!(self.messages.clone());
     }
 
     /**
@@ -232,7 +231,6 @@ impl Display<'_> {
 #[derive(Default)]
 pub struct DisplayBuilder<'a> {
     context: Option<&'a Context>,
-    user: Option<UserId>,
     channel: Option<ChannelId>,
     player: Option<&'a Mutex<Player>>,
 }
@@ -240,11 +238,6 @@ pub struct DisplayBuilder<'a> {
 impl<'a> DisplayBuilder<'a> {
     pub fn context(mut self, context: &'a Context) -> Self {
         self.context = Some(&context);
-        self
-    }
-
-    pub fn user(mut self, user: UserId) -> Self {
-        self.user = Some(user);
         self
     }
 
@@ -266,9 +259,6 @@ impl<'a> DisplayBuilder<'a> {
             context: self
                 .context
                 .expect("Context should be added to the builder before building"),
-            user: self
-                .user
-                .expect("User should be added to the builder before building"),
             channel: self
                 .channel
                 .expect("Channel should be added to the builder before building"),

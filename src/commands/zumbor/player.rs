@@ -1,16 +1,27 @@
-use std::{cmp, thread::current};
+use std::{cmp, collections::HashMap, thread::current};
 
+use google_cloud_storage::http::objects::{
+    download::Range, get::GetObjectRequest, list::ListObjectsRequest, Object,
+};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use serenity::{builder::CreateEmbed, model::prelude::UserId, Error};
+use serde_json::Value;
+use serenity::{
+    builder::CreateEmbed,
+    model::{prelude::UserId, user::User},
+    prelude::Context,
+    Error,
+};
 
 use derive_builder::Builder;
+
+use crate::StorageClient;
 
 use super::effects::{Attribute, Effectable, LingeringEffect, LingeringEffectName};
 
 #[derive(Serialize, Deserialize, Builder, Clone)]
 pub struct Player {
-    pub user: UserId,
+    pub tag: String,
     pub description: String,
     pub name: String,
     pub health: i16,
@@ -24,12 +35,12 @@ impl Player {
         self.score += score
     }
 
-    pub async fn load(user_id: UserId) -> Result<Self, Error> {
+    pub fn load(user: &User) -> Result<Self, Error> {
         // todo!()
         Ok(Player {
-            user: user_id,
-            description: "Really good looking".into(),
-            name: "Handsome Jack".into(),
+            tag: "BeefCake#2185".to_string(),
+            description: "Really good looking".to_string(),
+            name: "Handsome Jack".to_string(),
             health: 20,
             score: 0,
             stats: Stats {
@@ -82,7 +93,7 @@ impl From<Player> for CreateEmbed {
         use Attribute::{Agility, Charisma, Strength, Wisdom};
 
         embed
-            .author(|author| author.name(player.user))
+            .author(|author| author.name(player.tag))
             .title(player.name)
             .description(player.description)
             .color(color)
@@ -120,10 +131,10 @@ impl Effectable for Player {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Stats {
-    charisma: i16,
-    strength: i16,
-    wisdom: i16,
-    agility: i16,
+    pub charisma: i16,
+    pub strength: i16,
+    pub wisdom: i16,
+    pub agility: i16,
 }
 
 impl Stats {
@@ -154,4 +165,114 @@ pub enum PlayerEvent {
 pub struct RollResult {
     pub critical: bool,
     pub value: i16,
+}
+
+// Return a random encounter from the storage bucket
+pub async fn get(ctx: &Context, user_tag: String) -> Result<Player, Error> {
+    let data = ctx.data.read().await;
+
+    let storage_client = data.get::<StorageClient>().unwrap();
+
+    let client = &storage_client.client;
+
+    let request = GetObjectRequest {
+        bucket: "ziplod-assets".into(),
+        object: "zumbor/saves/".to_string() + &user_tag + ".json", //&user_tag,
+        ..Default::default()
+    };
+
+    let range = Range::default();
+
+    let byte_array = client
+        .download_object(&request, &range, None)
+        .await
+        .map_err(|_| Error::Other("User does not have a player saved"))?;
+
+    let player: Result<Player, _> = serde_json::from_slice(&byte_array);
+
+    // V2 players should be serializable straight to a struct
+    if let Ok(player) = player {
+        return Ok(player);
+    }
+
+    println!("Failed deserialise of object as struct");
+
+    // Handles previous versions of the Encounter object
+    let maybe_player_map: Value = serde_json::from_slice(&byte_array).unwrap();
+
+    let name: String = maybe_player_map
+        .get("name")
+        .ok_or(Error::Other("name field not present in data"))?
+        .as_str()
+        .expect("Name is a string")
+        .to_string();
+    let tag: String = maybe_player_map
+        .get("user")
+        .ok_or(Error::Other("name field not present in data"))?
+        .as_str()
+        .expect("User is a string")
+        .to_string();
+    let description: String = maybe_player_map
+        .get("description")
+        .ok_or(Error::Other("description field not present in data"))?
+        .as_str()
+        .expect("Description is a string")
+        .to_string();
+    let health: i16 = maybe_player_map
+        .get("health")
+        .ok_or(Error::Other("health field not present in data"))?
+        .as_u64()
+        .expect("Health is a number")
+        .try_into()
+        .unwrap();
+    let score: u16 = maybe_player_map
+        .get("score")
+        .ok_or(Error::Other("score field not present in data"))?
+        .as_u64()
+        .expect("Score to be a number")
+        .try_into()
+        .unwrap();
+
+    let stats = if let Value::Object(maybe_stats) = &maybe_player_map["stats"] {
+        Ok(Stats {
+            charisma: maybe_stats["Charisma"]
+                .as_u64()
+                .expect("Stat to be a number")
+                .try_into()
+                .expect("Good number"),
+            strength: maybe_stats["Strength"]
+                .as_u64()
+                .expect("Stat to be a number")
+                .try_into()
+                .expect("Good number"),
+            wisdom: maybe_stats["Wisdom"]
+                .as_u64()
+                .expect("Stat to be a number")
+                .try_into()
+                .expect("Good number"),
+            agility: maybe_stats["Agility"]
+                .as_u64()
+                .expect("Stat to be a number")
+                .try_into()
+                .expect("Good number"),
+        })
+    } else {
+        Err(Error::Other(("Stats should be an object / hash map")))
+    }?;
+
+    println!("Starting desrialise of effects..");
+    let effects: Vec<LingeringEffect> =
+        serde_json::from_value(maybe_player_map["effects"].clone()).unwrap_or(Vec::new());
+
+    let player = Player {
+        tag,
+        name,
+        description,
+        health: health.try_into().unwrap(),
+        score,
+        stats,
+        effects,
+    };
+
+    Ok(player)
 }

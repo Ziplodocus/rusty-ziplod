@@ -244,8 +244,6 @@ pub async fn get(ctx: &Context) -> Result<Encounter, Error> {
         .as_str()
         .replace("/encounters/", "/encounters/v2/");
 
-    // dbg!(encounter_name);
-
     let upload_media = Media::new(encounter_name);
 
     client
@@ -261,13 +259,7 @@ pub async fn get(ctx: &Context) -> Result<Encounter, Error> {
             Error::Other("Failed to upload object")
         })?;
 
-    println!("{:?}", encounter);
     Ok(encounter)
-
-    // encounter
-    // client.download_object(&GetObjectRequest {
-    //     bucket: "ziplod-assets",
-    // })
 }
 
 fn hex_to_colour(hex: &str) -> Colour {
