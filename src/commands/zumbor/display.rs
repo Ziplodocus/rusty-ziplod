@@ -226,6 +226,13 @@ impl Display<'_> {
     pub fn get_queued_messages(&mut self) -> VecDeque<CreateEmbed> {
         std::mem::take(&mut self.messages)
     }
+
+    pub async fn send_messages(&mut self) -> Result<Message, Error> {
+        let messages = self.get_queued_messages();
+        self.channel.send_message(self.context, |message| {
+            message.set_embeds(messages.into())
+        }).await
+    }
 }
 
 #[derive(Default)]

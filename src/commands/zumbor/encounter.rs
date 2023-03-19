@@ -63,13 +63,13 @@ impl Default for EncounterOption {
             threshold: 10,
             stat: Attribute::Strength,
             success: EncounterResult {
-                kind: EncounterResultName::Success("Oh no".into()),
+                kind: EncounterResultName::Success("Oh yeah".into()),
                 title: "You gone Wonned it!".into(),
-                text: "But nothing bad has happened".into(),
-                base_effect: Some(BaseEffect::Health(BaseHealthEffect { potency: -2 })),
+                text: "The good stuff is all happening now".into(),
+                base_effect: Some(BaseEffect::Health(BaseHealthEffect { potency: 5 })),
                 lingering_effect: Some(LingeringEffect {
                     kind: LingeringEffectType::Buff,
-                    name: LingeringEffectName::Stat(Attribute::Strength),
+                    name: LingeringEffectName::Regenerate,
                     potency: 3,
                     duration: 4,
                 }),
@@ -77,7 +77,7 @@ impl Default for EncounterOption {
             fail: EncounterResult {
                 kind: EncounterResultName::Success("Oh no".into()),
                 title: "You gone fucked up".into(),
-                text: "But something bad has happened".into(),
+                text: "Something bad has happened".into(),
                 base_effect: Some(BaseEffect::Health(BaseHealthEffect { potency: 5 })),
                 lingering_effect: Some(LingeringEffect {
                     kind: LingeringEffectType::Debuff,

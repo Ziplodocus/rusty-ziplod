@@ -11,7 +11,7 @@ use serenity::{
     framework::{standard::macros::group, StandardFramework},
     futures::lock::Mutex,
     prelude::{EventHandler, TypeMapKey},
-    Client,
+    Client, model::prelude::UserId,
 };
 
 #[group]
@@ -38,6 +38,7 @@ async fn main() {
         .expect("Couldn't create new client!");
 
     {
+        // Make the storage client available to the context
         let mut data = client.data.write().await;
 
         let storage_config = match GoogClientConfig::default().with_auth().await {
@@ -51,6 +52,12 @@ async fn main() {
         let storage_client = StorageClient::new(google_client);
 
         data.insert::<StorageClient>(storage_client);
+    }
+
+    {
+        // Create a global list of the running zumbor instances to prevent user from running more than one at once
+        let mut data = client.data.write().await;
+        data.insert::<ZumborInstances>(ZumborInstances::default())
     }
 
     if let Err(why) = client.start().await {
@@ -70,4 +77,13 @@ impl StorageClient {
 
 impl TypeMapKey for StorageClient {
     type Value = StorageClient;
+}
+
+#[derive(Default)]
+pub struct ZumborInstances {
+    instances: Vec<UserId>,
+}
+
+impl TypeMapKey for ZumborInstances {
+    type Value = ZumborInstances;
 }

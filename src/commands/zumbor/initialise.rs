@@ -9,8 +9,11 @@ use serenity::{
         user::User,
     },
     prelude::Context,
+    utils::Colour,
     Error,
 };
+
+use crate::ZumborInstances;
 
 use super::{
     display::{ContinueOption, Display},
@@ -24,16 +27,17 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 
     let user: &User = &msg.author;
 
-    // if running_games.get(&user.id).is_some() {
-    //     msg.channel_id
-    //         .say(ctx, "You already have a Zumbor instance running you mug")
-    //         .await?;
-    //     return Err(Error::Other(
-    //         "The user already has a Zumbor instance running",
-    //     ));
-    // }
-
-    // running_games.insert(user.id, true);
+    if let Err(err) = add_player_to_instance(ctx, user.id).await {
+        nice_message(
+            ctx,
+            msg.channel_id,
+            "You Fail!".to_string(),
+            "You already have a running instance of Zumbor you fool!".to_string(),
+        )
+        .await
+        .unwrap();
+        return Err(err)
+    };
 
     let player: Player = player::get(ctx, user.tag())
         .await
@@ -87,14 +91,22 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 
         if let Some(effect) = encounter_result.lingering_effect.clone() {
             println!("Added lingering effect: {}", effect.name);
-            display.queue_message(effect.clone().into());
+            let mut gain_embed: CreateEmbed = effect.clone().into();
+            gain_embed.title(format!("Received a {} {}", effect.name, effect.kind));
+            gain_embed.colour::<Colour>(effect.name.clone().into());
+            display.queue_message(gain_embed);
             player.add_effect(effect)
         }
 
         for effect in player.get_effects() {
             if effect.duration == 1 {
-                let mut end_embed: CreateEmbed = effect.clone().into();
-                end_embed.title(format!("{} {} has expired", effect.name, effect.kind));
+                let end_embed = quick_embed(
+                    format!(
+                        "A potency {} {} {} has expired",
+                        effect.potency, effect.name, effect.kind
+                    ),
+                    None,
+                );
                 display.queue_message(end_embed);
             }
         }
@@ -130,12 +142,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             //     }
             // };
 
-            // running_games.remove(&user.id);
-            // let result = player.remove();
-            // if let Err(err) = result.await {
-            //     println!("{}", err);
-            //     println!("Unable to remove player");
-            // }
+            remove_player_from_instance(ctx, user.id).await;
             return Ok(true);
         }
 
@@ -147,31 +154,51 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             continue;
         };
 
+        remove_player_from_instance(ctx, user.id).await;
+
+        {
+            let mut data = ctx.data.write().await;
+            let zumbor = data.get_mut::<ZumborInstances>().unwrap();
+            if zumbor.instances.contains(&user.id) {
+                nice_message(
+                    ctx,
+                    msg.channel_id,
+                    "You're already playing...".to_string(),
+                    "".to_string(),
+                )
+                .await
+                .expect("To be able to send a message without panic");
+                return Err(Error::Other(
+                    "The user currently has an active Zumbor instance",
+                ));
+            }
+            zumbor.instances.push(user.id);
+        }
+
         let player: MutexGuard<Player> = player_mutex.lock().await;
 
-        nice_message(
-            ctx,
-            msg.channel_id,
+        display.queue_message(quick_embed(
             "Resting...".to_owned(),
-            player.name.clone() + " takes a break",
-        )
-        .await?;
+            Some(player.name.clone() + " takes a break"),
+        ));
 
-        // match player.save().await {
-        //     Ok(_saved) => display.say("Saved Successfully").await,
-        //     Err(err) => {
-        //         println!("{}", err);
-        //         display
-        //             .say(
-        //                 format!(
-        //                     "Something went wrong while saving... Say goodbye to {}",
-        //                     player.name
-        //                 )
-        //                 .as_ref(),
-        //             )
-        //             .await;
-        //     }
-        // }
+        match player::save(ctx, &player).await {
+            Ok(_saved) => {
+                display.queue_message(quick_embed(format!("Save Succesful."), Some(format!(""))))
+            }
+            Err(err) => {
+                println!("{}", err);
+                display.queue_message(quick_embed(
+                    "Ruh Roh Wraggy...".to_string(),
+                    Some(format!(
+                        "Something went wrong while saving... Say goodbye to {}",
+                        player.name
+                    )),
+                ))
+            }
+        }
+
+        display.send_messages().await.unwrap();
 
         // running_games.remove(&user.id);
 
@@ -229,4 +256,39 @@ async fn nice_message(
             msg.embed(|emb| emb.title(title).description(description))
         })
         .await
+}
+
+fn quick_embed(title: String, description: Option<String>) -> CreateEmbed {
+    let mut embed = CreateEmbed::default();
+    embed.title(title);
+    if let Some(description) = description {
+        embed.description(description);
+    }
+
+    embed
+}
+
+/**
+ * Adds the user ID to the running instances saved into th context, returns an error if the user id exists in the intances vec already
+ */
+async fn add_player_to_instance(ctx: &Context, user_id: UserId) -> Result<bool, Error> {
+    let mut data = ctx.data.write().await;
+    let zumbor = data.get_mut::<ZumborInstances>().unwrap();
+    if zumbor.instances.contains(&user_id) {
+        Err(Error::Other(
+            "The user currently has an active Zumbor instance",
+        ))
+    } else {
+        zumbor.instances.push(user_id);
+        Ok(true)
+    }
+}
+
+async fn remove_player_from_instance(ctx: &Context, user_id: UserId) {
+    let mut data = ctx.data.write().await;
+    let zumbor = data.get_mut::<ZumborInstances>().unwrap();
+    // Ignore if no such element is found
+    if let Some(pos) = zumbor.instances.iter().position(|x| *x == user_id) {
+        zumbor.instances.remove(pos);
+    }
 }

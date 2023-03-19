@@ -1,7 +1,7 @@
-use std::{cmp, collections::HashMap, thread::current};
+use std::{cmp, collections::HashMap, thread::current, borrow::Cow};
 
 use google_cloud_storage::http::objects::{
-    download::Range, get::GetObjectRequest, list::ListObjectsRequest, Object,
+    download::Range, get::GetObjectRequest, list::ListObjectsRequest, Object, upload::{UploadObjectRequest, Media, UploadType},
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -84,6 +84,9 @@ impl From<Player> for CreateEmbed {
         // Determining color of emebed from players health
         let current_health: u8 = player.health.try_into().unwrap_or(255);
         dbg!(current_health);
+        /*
+         * TODO: Health can quickly overflow the u8 here int he colour calc
+         */
         let color: (u8, u8, u8) = (
             cmp::min(cmp::max(255u8 - (current_health / 20 * 255), 0), 255),
             cmp::max(cmp::min((current_health / 20) * 255, 255), 0),
@@ -275,4 +278,43 @@ pub async fn get(ctx: &Context, user_tag: String) -> Result<Player, Error> {
     };
 
     Ok(player)
+}
+
+pub async fn save(ctx: &Context, player: &Player) -> Result<(), Error> {
+    let data = ctx.data.read().await;
+
+    let storage_client = data.get::<StorageClient>().unwrap();
+
+    let client = &storage_client.client;
+
+    let upload_request = UploadObjectRequest {
+        bucket: "ziplod-assets".into(),
+        ..Default::default()
+    };
+
+    let player_json: String =
+        serde_json::to_string(&player).map_err(|err| Error::from(err))?;
+
+    let save_name = "zumbor/saves/".to_string() + &player.tag + ".json";
+
+    let upload_media = Media {
+        name: Cow::Owned(save_name),
+        content_type: Cow::Borrowed("application/json"),
+        content_length: Some(player_json.len())
+    };//Media::new(save_name);
+
+    client
+        .upload_object(
+            &upload_request,
+            player_json,
+            &UploadType::Simple(upload_media),
+            Default::default(),
+        )
+        .await
+        .map_err(|err| {
+            dbg!(err);
+            Error::Other("Failed to upload object")
+        })?;
+
+    Ok(())
 }
