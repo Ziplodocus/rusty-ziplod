@@ -16,10 +16,10 @@ use serenity::{
 use crate::ZumborInstances;
 
 use super::{
-    display::{ContinueOption, Display},
+    display::{ContinueOption, Display, self},
     effects::{BaseEffect, Effectable},
     encounter::Encounter,
-    player::{self, Player, Stats},
+    player::{self, Player, Stats, request_player},
 };
 
 pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
@@ -41,7 +41,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 
     let player: Player = player::get(ctx, user.tag())
         .await
-        .or(request_player(user))?;
+        .or(request_player(msg.channel_id, user.tag(), ctx).await)?;
 
     let player_mutex: Mutex<Player> = Mutex::new(player);
 
@@ -228,22 +228,22 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 //     });
 // }
 
-fn request_player<'a>(user: &User) -> Result<Player, Error> {
-    Ok(Player {
-        tag: user.tag(),
-        description: "Really good looking".to_string(),
-        name: "Handsome Jack".to_string(),
-        health: 20,
-        score: 0,
-        stats: Stats {
-            charisma: 10,
-            strength: 3,
-            wisdom: 2,
-            agility: 1,
-        },
-        effects: Vec::new(),
-    })
-}
+// fn request_player<'a>(user: &User) -> Result<Player, Error> {
+//     Ok(Player {
+//         tag: user.tag(),
+//         description: "Really good looking".to_string(),
+//         name: "Handsome Jack".to_string(),
+//         health: 20,
+//         score: 0,
+//         stats: Stats {
+//             charisma: 10,
+//             strength: 3,
+//             wisdom: 2,
+//             agility: 1,
+//         },
+//         effects: Vec::new(),
+//     })
+// }
 
 async fn nice_message(
     ctx: impl AsRef<Http>,

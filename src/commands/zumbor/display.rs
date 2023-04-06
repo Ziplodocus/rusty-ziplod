@@ -148,6 +148,7 @@ impl Display<'_> {
         Ok(message)
     }
 
+
     pub async fn request_continue(&self) -> Result<ContinueOption, Error> {
         println!("Requesting continue!");
         let message = self
@@ -229,9 +230,9 @@ impl Display<'_> {
 
     pub async fn send_messages(&mut self) -> Result<Message, Error> {
         let messages = self.get_queued_messages();
-        self.channel.send_message(self.context, |message| {
-            message.set_embeds(messages.into())
-        }).await
+        self.channel
+            .send_message(self.context, |message| message.set_embeds(messages.into()))
+            .await
     }
 }
 

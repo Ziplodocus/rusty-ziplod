@@ -1,16 +1,23 @@
-use std::{cmp, collections::HashMap, thread::current, borrow::Cow};
+use std::{borrow::Cow, cmp, collections::HashMap, thread::current, time::Duration};
 
 use google_cloud_storage::http::objects::{
-    download::Range, get::GetObjectRequest, list::ListObjectsRequest, Object, upload::{UploadObjectRequest, Media, UploadType},
+    download::Range,
+    get::GetObjectRequest,
+    list::ListObjectsRequest,
+    upload::{Media, UploadObjectRequest, UploadType},
+    Object,
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serenity::{
     builder::CreateEmbed,
-    model::{prelude::UserId, user::User},
+    model::{
+        prelude::{Channel, ChannelId, UserId, component::InputTextStyle, interaction::InteractionResponseType},
+        user::User,
+    },
     prelude::Context,
-    Error,
+    Error
 };
 
 use derive_builder::Builder;
@@ -83,13 +90,13 @@ impl From<Player> for CreateEmbed {
 
         // Determining color of emebed from players health
         let current_health: u8 = player.health.try_into().unwrap_or(255);
-        dbg!(current_health);
-        /*
-         * TODO: Health can quickly overflow the u8 here int he colour calc
-         */
+
         let color: (u8, u8, u8) = (
-            cmp::min(cmp::max(255u8 - (current_health / 20 * 255), 0), 255),
-            cmp::max(cmp::min((current_health / 20) * 255, 255), 0),
+            cmp::min(
+                cmp::max(255u8 - (cmp::min(current_health, 20) / 20 * 255), 0),
+                255,
+            ),
+            cmp::max(cmp::min((cmp::min(current_health, 20) / 20) * 255, 255), 0),
             0,
         );
 
@@ -170,7 +177,7 @@ pub struct RollResult {
     pub value: i16,
 }
 
-// Return a random encounter from the storage bucket
+// Gets the player's save if it exists
 pub async fn get(ctx: &Context, user_tag: String) -> Result<Player, Error> {
     let data = ctx.data.read().await;
 
@@ -292,16 +299,15 @@ pub async fn save(ctx: &Context, player: &Player) -> Result<(), Error> {
         ..Default::default()
     };
 
-    let player_json: String =
-        serde_json::to_string(&player).map_err(|err| Error::from(err))?;
+    let player_json: String = serde_json::to_string(&player).map_err(|err| Error::from(err))?;
 
     let save_name = "zumbor/saves/".to_string() + &player.tag + ".json";
 
     let upload_media = Media {
         name: Cow::Owned(save_name),
         content_type: Cow::Borrowed("application/json"),
-        content_length: Some(player_json.len())
-    };//Media::new(save_name);
+        content_length: Some(player_json.len()),
+    }; //Media::new(save_name);
 
     client
         .upload_object(
@@ -317,4 +323,51 @@ pub async fn save(ctx: &Context, player: &Player) -> Result<(), Error> {
         })?;
 
     Ok(())
+}
+
+pub async fn request_player(
+    channel: ChannelId,
+    user_tag: String,
+    context: &Context,
+) -> Result<Player, Error> {
+    let message = channel
+        .send_message(context, |msg| {
+            msg.add_embed(|embed| embed.title("Create a Character"))
+                .components(|components| {
+                    components.create_action_row(|row| {
+                        row.create_button(|button| button.custom_id(&user_tag).label("Choose"))
+                    })
+                })
+        })
+        .await
+        .map_err(|err| {
+            println!("{}", err);
+            Error::Other("Failed to send player request message")
+        })?;
+
+    let user_tag_2 = user_tag.clone();
+
+    let interaction = message
+        .await_component_interaction(context)
+        .filter(move |interaction| interaction.user.tag() == user_tag_2)
+        .timeout(Duration::new(120, 0))
+        .collect_limit(1)
+        .await
+        .ok_or(Error::Other("Message interaction was not collected"))?;
+
+    let modal = interaction.create_interaction_response(context, |response| {
+        response.kind(InteractionResponseType::Modal).interaction_response_data(|data| {
+            data.content("HAHA")
+        })
+    }).await.map_err(|_e| {Error::Other("Modal failed")})?;
+
+    Ok(Player {
+        tag: "Bum".to_owned(),
+        description: "HE".to_owned(),
+        name: "Haha".to_owned(),
+        health: 3,
+        score: 0,
+        stats: todo!(),
+        effects: todo!(),
+    })
 }
