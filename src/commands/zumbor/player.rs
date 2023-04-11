@@ -12,12 +12,17 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serenity::{
     builder::CreateEmbed,
+    collector::ModalInteractionCollector,
     model::{
-        prelude::{Channel, ChannelId, UserId, component::InputTextStyle, interaction::InteractionResponseType},
+        prelude::{
+            component::{ButtonStyle, InputTextStyle},
+            interaction::InteractionResponseType,
+            Channel, ChannelId, UserId,
+        },
         user::User,
     },
     prelude::Context,
-    Error
+    Error,
 };
 
 use derive_builder::Builder;
@@ -307,7 +312,7 @@ pub async fn save(ctx: &Context, player: &Player) -> Result<(), Error> {
         name: Cow::Owned(save_name),
         content_type: Cow::Borrowed("application/json"),
         content_length: Some(player_json.len()),
-    }; //Media::new(save_name);
+    };
 
     client
         .upload_object(
@@ -345,21 +350,123 @@ pub async fn request_player(
             Error::Other("Failed to send player request message")
         })?;
 
-    let user_tag_2 = user_tag.clone();
+    let user_tag_clone = user_tag.clone();
 
     let interaction = message
         .await_component_interaction(context)
-        .filter(move |interaction| interaction.user.tag() == user_tag_2)
+        .filter(move |interaction| interaction.user.tag() == user_tag_clone)
         .timeout(Duration::new(120, 0))
         .collect_limit(1)
         .await
         .ok_or(Error::Other("Message interaction was not collected"))?;
 
-    let modal = interaction.create_interaction_response(context, |response| {
-        response.kind(InteractionResponseType::Modal).interaction_response_data(|data| {
-            data.content("HAHA")
+    interaction
+        .create_interaction_response(context, |response| {
+            response
+                .kind(InteractionResponseType::Modal)
+                .interaction_response_data(|data| {
+                    data.content("HAHA").components(|comp| {
+                        comp.create_action_row(|row| {
+                            row.create_input_text(|inp| {
+                                inp.label("Name")
+                                    .custom_id("name")
+                                    .required(true)
+                                    .style(InputTextStyle::Short)
+                            })
+                            .create_input_text(|inp| {
+                                inp.label("Description")
+                                    .custom_id("description")
+                                    .required(true)
+                                    .style(InputTextStyle::Paragraph)
+                            })
+                        })
+                    })
+                })
         })
-    }).await.map_err(|_e| {Error::Other("Modal failed")})?;
+        .await
+        .map_err(|_e| Error::Other("Modal failed"))?;
+
+    let user_tag_clone = user_tag.clone();
+
+    let interaction = message
+        .await_modal_interaction(context)
+        .filter(move |interaction| interaction.user.tag() == user_tag_clone)
+        .timeout(Duration::new(120, 0))
+        .collect_limit(1)
+        .await
+        .ok_or(Error::Other("Modal interaction was not collected"))?;
+
+    let some_player_data = &interaction.data.components;
+
+    interaction
+        .create_interaction_response(context, |response| {
+            response
+                .kind(InteractionResponseType::UpdateMessage)
+                .interaction_response_data(|message| {
+                    message
+                        .embed(|embed| embed.title("Choose you stats..."))
+                        .components(|comps| {
+                            comps.create_action_row(|row| {
+                                row.create_button(|button| {
+                                    button
+                                        .custom_id("stats")
+                                        .label("Stats")
+                                        .style(ButtonStyle::Primary)
+                                })
+                            })
+                        })
+                })
+        })
+        .await
+        .map_err(|_e| Error::Other("Modal failed"))?;
+
+    let user_tag_clone = user_tag.clone();
+
+    let interaction = message
+        .await_component_interaction(context)
+        .filter(move |interaction| interaction.user.tag() == user_tag_clone)
+        .timeout(Duration::new(120, 0))
+        .collect_limit(1)
+        .await
+        .ok_or(Error::Other("Button interaction was not collected"))?;
+
+    interaction
+        .create_interaction_response(context, |response| {
+            response
+                .kind(InteractionResponseType::Modal)
+                .interaction_response_data(|data| {
+                    data.content("HEHE").components(|comp| {
+                        comp.create_action_row(|row| {
+                            Attribute::VALUES.into_iter().for_each(|attr| {
+                                let stat: String = attr.into();
+                                row.create_input_text(|inp| {
+                                    inp.custom_id(&stat)
+                                        .label(&stat)
+                                        .style(InputTextStyle::Short)
+                                        .required(true)
+                                });
+                            });
+                            row
+                        })
+                    })
+                })
+        })
+        .await
+        .map_err(|_e| Error::Other("Modal failed"))?;
+
+    let user_tag_clone = user_tag.clone();
+
+    let interaction = message
+        .await_modal_interaction(context)
+        .filter(move |interaction| interaction.user.tag() == user_tag_clone)
+        .timeout(Duration::new(120, 0))
+        .collect_limit(1)
+        .await
+        .ok_or(Error::Other("Modal interaction was not collected"))?;
+
+    let more_player_data = &interaction.data.components;
+
+    println!("{:?} {:?}", some_player_data, more_player_data);
 
     Ok(Player {
         tag: "Bum".to_owned(),
