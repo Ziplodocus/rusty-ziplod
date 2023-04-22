@@ -1,4 +1,5 @@
 mod commands;
+mod storage;
 use std::env;
 
 use commands::{ping::PING_COMMAND, zumbor::ZUMBOR_COMMAND};
@@ -10,9 +11,11 @@ use serde_json::json;
 use serenity::{
     framework::{standard::macros::group, StandardFramework},
     futures::lock::Mutex,
+    model::prelude::UserId,
     prelude::{EventHandler, TypeMapKey},
-    Client, model::prelude::UserId,
+    Client,
 };
+use storage::StorageClient;
 
 #[group]
 #[commands(ping, zumbor)]
@@ -41,15 +44,7 @@ async fn main() {
         // Make the storage client available to the context
         let mut data = client.data.write().await;
 
-        let storage_config = match GoogClientConfig::default().with_auth().await {
-            Ok(thing) => thing,
-            Err(err) => {
-                println!("{:?}", err);
-                panic!("{:?}", err);
-            }
-        };
-        let google_client = GoogClient::new(storage_config);
-        let storage_client = StorageClient::new(google_client);
+        let storage_client = StorageClient::new().await;
 
         data.insert::<StorageClient>(storage_client);
     }
@@ -63,20 +58,6 @@ async fn main() {
     if let Err(why) = client.start().await {
         println!("An error occurred while running the client: {:?}", why)
     }
-}
-
-struct StorageClient {
-    client: google_cloud_storage::client::Client,
-}
-
-impl StorageClient {
-    fn new(client: google_cloud_storage::client::Client) -> Self {
-        StorageClient { client }
-    }
-}
-
-impl TypeMapKey for StorageClient {
-    type Value = StorageClient;
 }
 
 #[derive(Default)]

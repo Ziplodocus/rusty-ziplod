@@ -16,10 +16,10 @@ use serenity::{
 use crate::ZumborInstances;
 
 use super::{
-    display::{ContinueOption, Display, self},
+    display::{self, ContinueOption, Display},
     effects::{BaseEffect, Effectable},
     encounter::Encounter,
-    player::{self, Player, Stats, request_player},
+    player::{self, request_player, Player, Stats},
 };
 
 pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
@@ -36,12 +36,13 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         )
         .await
         .unwrap();
-        return Err(err)
+        return Err(err);
     };
 
-    let player: Player = player::get(ctx, user.tag())
-        .await
-        .or(request_player(msg.channel_id, user.tag(), ctx).await)?;
+    let player: Player =
+        player::get(ctx, user.tag())
+            .await
+            .or(request_player(msg.channel_id, user.tag(), ctx).await)?;
 
     let player_mutex: Mutex<Player> = Mutex::new(player);
 
@@ -167,7 +168,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
                     "".to_string(),
                 )
                 .await
-                .expect("To be able to send a message without panic");
+                .expect("To be able to send a message without error");
                 return Err(Error::Other(
                     "The user currently has an active Zumbor instance",
                 ));
@@ -183,9 +184,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         ));
 
         match player::save(ctx, &player).await {
-            Ok(_saved) => {
-                display.queue_message(quick_embed(format!("Save Succesful."), Some(format!(""))))
-            }
+            Ok(_saved) => display.queue_message(quick_embed("Save Succesful.".to_string(), None)),
             Err(err) => {
                 println!("{}", err);
                 display.queue_message(quick_embed(

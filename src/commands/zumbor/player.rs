@@ -1,26 +1,11 @@
-use std::{borrow::Cow, cmp, collections::HashMap, thread::current, time::Duration};
+use std::cmp;
 
-use google_cloud_storage::http::objects::{
-    download::Range,
-    get::GetObjectRequest,
-    list::ListObjectsRequest,
-    upload::{Media, UploadObjectRequest, UploadType},
-    Object,
-};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serenity::{
     builder::CreateEmbed,
-    collector::ModalInteractionCollector,
-    model::{
-        prelude::{
-            component::{ButtonStyle, InputTextStyle},
-            interaction::InteractionResponseType,
-            Channel, ChannelId, UserId,
-        },
-        user::User,
-    },
+    model::{prelude::ChannelId, user::User},
     prelude::Context,
     Error,
 };
@@ -45,24 +30,6 @@ pub struct Player {
 impl Player {
     pub fn add_score(&mut self, score: u16) {
         self.score += score
-    }
-
-    pub fn load(user: &User) -> Result<Self, Error> {
-        // todo!()
-        Ok(Player {
-            tag: "BeefCake#2185".to_string(),
-            description: "Really good looking".to_string(),
-            name: "Handsome Jack".to_string(),
-            health: 20,
-            score: 0,
-            stats: Stats {
-                charisma: 10,
-                strength: 3,
-                wisdom: 2,
-                agility: 1,
-            },
-            effects: Vec::new(),
-        })
     }
 
     pub async fn remove(&self) -> Result<&str, Error> {
@@ -187,33 +154,22 @@ pub async fn get(ctx: &Context, user_tag: String) -> Result<Player, Error> {
     let data = ctx.data.read().await;
 
     let storage_client = data.get::<StorageClient>().unwrap();
+    let path = "zumbor/saves/".to_string() + &user_tag + ".json";
 
-    let client = &storage_client.client;
+    let bytes = storage_client.download(path).await?;
 
-    let request = GetObjectRequest {
-        bucket: "ziplod-assets".into(),
-        object: "zumbor/saves/".to_string() + &user_tag + ".json", //&user_tag,
-        ..Default::default()
-    };
-
-    let range = Range::default();
-
-    let byte_array = client
-        .download_object(&request, &range, None)
-        .await
-        .map_err(|_| Error::Other("User does not have a player saved"))?;
-
-    let player: Result<Player, _> = serde_json::from_slice(&byte_array);
+    let maybe_player: Result<Player, Error> =
+        serde_json::from_slice(&bytes).map_err(|err| Error::Json(err));
 
     // V2 players should be serializable straight to a struct
-    if let Ok(player) = player {
+    if let Ok(player) = maybe_player {
         return Ok(player);
     }
 
     println!("Failed deserialise of object as struct");
 
-    // Handles previous versions of the Encounter object
-    let maybe_player_map: Value = serde_json::from_slice(&byte_array).unwrap();
+    // Handles first versions of the Player object
+    let maybe_player_map: Value = serde_json::from_slice(&bytes).unwrap();
 
     let name: String = maybe_player_map
         .get("name")
@@ -295,39 +251,14 @@ pub async fn get(ctx: &Context, user_tag: String) -> Result<Player, Error> {
 pub async fn save(ctx: &Context, player: &Player) -> Result<(), Error> {
     let data = ctx.data.read().await;
 
-    let storage_client = data.get::<StorageClient>().unwrap();
+    let storage_client = data
+        .get::<StorageClient>()
+        .ok_or(Error::Other("Storage client not accessible!"))?;
 
-    let client = &storage_client.client;
+    let player_json: String = serde_json::to_string(player).map_err(|err| Error::from(err))?;
+    let save_name = "zumbor/saves/".to_string() + &player.tag;
 
-    let upload_request = UploadObjectRequest {
-        bucket: "ziplod-assets".into(),
-        ..Default::default()
-    };
-
-    let player_json: String = serde_json::to_string(&player).map_err(|err| Error::from(err))?;
-
-    let save_name = "zumbor/saves/".to_string() + &player.tag + ".json";
-
-    let upload_media = Media {
-        name: Cow::Owned(save_name),
-        content_type: Cow::Borrowed("application/json"),
-        content_length: Some(player_json.len()),
-    };
-
-    client
-        .upload_object(
-            &upload_request,
-            player_json,
-            &UploadType::Simple(upload_media),
-            Default::default(),
-        )
-        .await
-        .map_err(|err| {
-            dbg!(err);
-            Error::Other("Failed to upload object")
-        })?;
-
-    Ok(())
+    storage_client.upload_json(save_name, player_json).await
 }
 
 pub async fn request_player(
@@ -335,107 +266,79 @@ pub async fn request_player(
     user_tag: String,
     context: &Context,
 ) -> Result<Player, Error> {
-    let message = channel
-        .send_message(context, |msg| {
-            msg.add_embed(|embed| embed.title("Create a Character"))
-                .components(|components| {
-                    components.create_action_row(|row| {
-                        row.create_button(|button| button.custom_id(&user_tag).label("Choose"))
-                    })
-                })
-        })
-        .await
-        .map_err(|err| {
-            println!("{}", err);
-            Error::Other("Failed to send player request message")
-        })?;
+    let message = messages::character_details_request(channel, context).await?;
 
-    let user_tag_clone = user_tag.clone();
+    let interaction = await_interation::component(&message, context, user_tag.clone()).await?;
 
-    let interaction = message
-        .await_component_interaction(context)
-        .filter(move |interaction| interaction.user.tag() == user_tag_clone)
-        .timeout(Duration::new(120, 0))
-        .collect_limit(1)
-        .await
-        .ok_or(Error::Other("Message interaction was not collected"))?;
+    send_modal::character_details(interaction, context).await?;
 
-    interaction
-        .create_interaction_response(context, |response| {
-            response
-                .kind(InteractionResponseType::Modal)
-                .interaction_response_data(|data| {
-                    data.content("HAHA").components(|comp| {
-                        comp.create_action_row(|row| {
-                            row.create_input_text(|inp| {
-                                inp.label("Name")
-                                    .custom_id("name")
-                                    .required(true)
-                                    .style(InputTextStyle::Short)
-                            })
-                            .create_input_text(|inp| {
-                                inp.label("Description")
-                                    .custom_id("description")
-                                    .required(true)
-                                    .style(InputTextStyle::Paragraph)
-                            })
-                        })
-                    })
-                })
-        })
-        .await
-        .map_err(|_e| Error::Other("Modal failed"))?;
+    let interaction = await_interation::modal(&message, context, user_tag.clone()).await?;
 
-    let user_tag_clone = user_tag.clone();
+    let player_details = interaction.data.components.clone();
 
-    let interaction = message
-        .await_modal_interaction(context)
-        .filter(move |interaction| interaction.user.tag() == user_tag_clone)
-        .timeout(Duration::new(120, 0))
-        .collect_limit(1)
-        .await
-        .ok_or(Error::Other("Modal interaction was not collected"))?;
+    messages::stats_request(interaction, context, user_tag.clone()).await?;
 
-    let some_player_data = &interaction.data.components;
+    let interaction = await_interation::component(&message, context, user_tag.clone()).await?;
 
-    interaction
-        .create_interaction_response(context, |response| {
-            response
-                .kind(InteractionResponseType::UpdateMessage)
-                .interaction_response_data(|message| {
-                    message
-                        .embed(|embed| embed.title("Choose you stats..."))
-                        .components(|comps| {
-                            comps.create_action_row(|row| {
-                                row.create_button(|button| {
-                                    button
-                                        .custom_id("stats")
-                                        .label("Stats")
-                                        .style(ButtonStyle::Primary)
-                                })
-                            })
-                        })
-                })
-        })
-        .await
-        .map_err(|_e| Error::Other("Modal failed"))?;
+    send_modal::stats(interaction, context).await?;
 
-    let user_tag_clone = user_tag.clone();
+    let interaction = await_interation::modal(&message, context, user_tag.clone()).await?;
 
-    let interaction = message
-        .await_component_interaction(context)
-        .filter(move |interaction| interaction.user.tag() == user_tag_clone)
-        .timeout(Duration::new(120, 0))
-        .collect_limit(1)
-        .await
-        .ok_or(Error::Other("Button interaction was not collected"))?;
+    let stats_data = interaction.data.components.clone();
 
-    interaction
-        .create_interaction_response(context, |response| {
-            response
-                .kind(InteractionResponseType::Modal)
-                .interaction_response_data(|data| {
-                    data.content("HEHE").components(|comp| {
+    println!("{:?} {:?}", player_details, stats_data);
+
+    Ok(Player {
+        tag: "BeefCake#2185".to_string(),
+        description: "Really good looking".to_string(),
+        name: "Handsome Jack".to_string(),
+        health: 20,
+        score: 0,
+        stats: Stats {
+            charisma: 10,
+            strength: 3,
+            wisdom: 2,
+            agility: 1,
+        },
+        effects: Vec::new(),
+    })
+}
+
+mod send_modal {
+    use std::sync::Arc;
+
+    use serenity::{
+        builder::CreateInteractionResponse,
+        model::prelude::{
+            component::InputTextStyle,
+            interaction::{
+                message_component::MessageComponentInteraction, InteractionResponseType,
+            },
+        },
+        prelude::Context,
+        Error,
+    };
+
+    use crate::commands::zumbor::effects::Attribute;
+
+    pub async fn stats(
+        interaction: Arc<MessageComponentInteraction>,
+        context: &Context,
+    ) -> Result<(), Error> {
+        interaction
+            .create_interaction_response(context, create_stats_modal)
+            .await
+            .map_err(|_e| Error::Other("Modal failed"))
+    }
+
+    fn create_stats_modal<'a, 'b>(
+        response: &'a mut CreateInteractionResponse<'b>,
+    ) -> &'a mut CreateInteractionResponse<'b> {
+        response
+            .kind(InteractionResponseType::Modal)
+            .interaction_response_data(|data| {
+                data.content("Allocate your 5 stat points")
+                    .components(|comp| {
                         comp.create_action_row(|row| {
                             Attribute::VALUES.into_iter().for_each(|attr| {
                                 let stat: String = attr.into();
@@ -449,32 +352,149 @@ pub async fn request_player(
                             row
                         })
                     })
+            })
+    }
+
+    pub async fn character_details(
+        interaction: Arc<MessageComponentInteraction>,
+        context: &Context,
+    ) -> Result<(), Error> {
+        interaction
+            .create_interaction_response(context, create_character_details_modal)
+            .await
+            .map_err(|_e| Error::Other("Modal failed"))
+    }
+
+    fn create_character_details_modal<'a, 'b>(
+        response: &'a mut CreateInteractionResponse<'b>,
+    ) -> &'a mut CreateInteractionResponse<'b> {
+        response
+            .kind(InteractionResponseType::Modal)
+            .interaction_response_data(|data| {
+                data.content("Who are you adventurer?").components(|comp| {
+                    comp.create_action_row(|row| {
+                        row.create_input_text(|inp| {
+                            inp.label("Name")
+                                .custom_id("name")
+                                .required(true)
+                                .style(InputTextStyle::Short)
+                        })
+                        .create_input_text(|inp| {
+                            inp.label("Description")
+                                .custom_id("description")
+                                .required(true)
+                                .style(InputTextStyle::Paragraph)
+                        })
+                    })
                 })
-        })
-        .await
-        .map_err(|_e| Error::Other("Modal failed"))?;
+            })
+    }
+}
 
-    let user_tag_clone = user_tag.clone();
+mod await_interation {
+    use std::{sync::Arc, time::Duration};
 
-    let interaction = message
-        .await_modal_interaction(context)
-        .filter(move |interaction| interaction.user.tag() == user_tag_clone)
-        .timeout(Duration::new(120, 0))
-        .collect_limit(1)
-        .await
-        .ok_or(Error::Other("Modal interaction was not collected"))?;
+    use serenity::{
+        model::prelude::{
+            interaction::{
+                message_component::MessageComponentInteraction, modal::ModalSubmitInteraction,
+            },
+            Message,
+        },
+        prelude::Context,
+        Error,
+    };
 
-    let more_player_data = &interaction.data.components;
+    pub(crate) async fn component(
+        message: &Message,
+        context: &Context,
+        user_tag: String,
+    ) -> Result<Arc<MessageComponentInteraction>, Error> {
+        message
+            .await_component_interaction(context)
+            .filter(move |interaction| interaction.user.tag() == user_tag)
+            .timeout(Duration::new(120, 0))
+            .collect_limit(1)
+            .await
+            .ok_or(Error::Other(
+                "Message Component interaction was not collected",
+            ))
+    }
+    pub(crate) async fn modal(
+        message: &Message,
+        context: &Context,
+        user_tag: String,
+    ) -> Result<Arc<ModalSubmitInteraction>, Error> {
+        message
+            .await_modal_interaction(context)
+            .filter(move |interaction| interaction.user.tag() == user_tag)
+            .timeout(Duration::new(120, 0))
+            .collect_limit(1)
+            .await
+            .ok_or(Error::Other("Modal interaction was not collected"))
+    }
+}
 
-    println!("{:?} {:?}", some_player_data, more_player_data);
+mod messages {
+    use std::sync::Arc;
 
-    Ok(Player {
-        tag: "Bum".to_owned(),
-        description: "HE".to_owned(),
-        name: "Haha".to_owned(),
-        health: 3,
-        score: 0,
-        stats: todo!(),
-        effects: todo!(),
-    })
+    use serenity::{
+        model::prelude::{
+            component::ButtonStyle,
+            interaction::{modal::ModalSubmitInteraction, InteractionResponseType},
+            ChannelId, Message,
+        },
+        prelude::Context,
+        Error,
+    };
+
+    pub(crate) async fn character_details_request(
+        channel: ChannelId,
+        context: &Context,
+    ) -> Result<Message, Error> {
+        channel
+            .send_message(context, |msg| {
+                msg.add_embed(|embed| embed.title("Create a Character"))
+                    .components(|components| {
+                        components.create_action_row(|row| {
+                            row.create_button(|button| {
+                                button.custom_id("choose_stats").label("Choose")
+                            })
+                        })
+                    })
+            })
+            .await
+            .map_err(|err| {
+                println!("{}", err);
+                Error::Other("Failed to send player request message")
+            })
+    }
+
+    pub(crate) async fn stats_request(
+        interaction: Arc<ModalSubmitInteraction>,
+        context: &Context,
+        user_tag: String,
+    ) -> Result<(), Error> {
+        interaction
+            .create_interaction_response(context, |response| {
+                response
+                    .kind(InteractionResponseType::UpdateMessage)
+                    .interaction_response_data(|message| {
+                        message
+                            .embed(|embed| embed.title("Choose your stats..."))
+                            .components(|comps| {
+                                comps.create_action_row(|row| {
+                                    row.create_button(|button| {
+                                        button
+                                            .custom_id("stats")
+                                            .label("Stats")
+                                            .style(ButtonStyle::Primary)
+                                    })
+                                })
+                            })
+                    })
+            })
+            .await
+            .map_err(|_e| Error::Other("Modal failed"))
+    }
 }
