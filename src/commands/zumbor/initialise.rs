@@ -39,10 +39,13 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         return Err(err);
     };
 
-    let player: Player =
-        player::get(ctx, user.tag())
-            .await
-            .or(request_player(msg.channel_id, user.tag(), ctx).await)?;
+let msg_id = msg.channel_id;
+let user_tag = user.tag();
+    let player: Player = match player::get(ctx, user.tag())
+            .await {
+                Ok(player) => player,
+                Err(_err) => request_player(msg_id, user_tag, ctx).await?
+            };
 
     let player_mutex: Mutex<Player> = Mutex::new(player);
 

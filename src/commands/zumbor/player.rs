@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serenity::{
     builder::CreateEmbed,
-    model::{prelude::ChannelId, user::User},
+    model::{prelude::{ChannelId, component::ActionRow}, user::User},
     prelude::Context,
     Error,
 };
@@ -151,6 +151,7 @@ pub struct RollResult {
 
 // Gets the player's save if it exists
 pub async fn get(ctx: &Context, user_tag: String) -> Result<Player, Error> {
+    return Err(Error::Other("Manually failing get to test request player"));
     let data = ctx.data.read().await;
 
     let storage_client = data.get::<StorageClient>().unwrap();
@@ -284,9 +285,13 @@ pub async fn request_player(
 
     let interaction = await_interation::modal(&message, context, user_tag.clone()).await?;
 
+    interaction.create_interaction_response(context, |msg| {
+        msg.interaction_response_data(|data| data.embed(|emb| emb.title("success")))
+    }).await?;
+
     let stats_data = interaction.data.components.clone();
 
-    println!("{:?} {:?}", player_details, stats_data);
+    dbg!(player_details, stats_data);
 
     Ok(Player {
         tag: "BeefCake#2185".to_string(),
@@ -295,7 +300,7 @@ pub async fn request_player(
         health: 20,
         score: 0,
         stats: Stats {
-            charisma: 10,
+            charisma: 5,
             strength: 3,
             wisdom: 2,
             agility: 1,
@@ -328,7 +333,10 @@ mod send_modal {
         interaction
             .create_interaction_response(context, create_stats_modal)
             .await
-            .map_err(|_e| Error::Other("Modal failed"))
+            .map_err(|err| {
+                println!("{}", err);
+                Error::Other("Modal failed")
+            })
     }
 
     fn create_stats_modal<'a, 'b>(
@@ -337,20 +345,20 @@ mod send_modal {
         response
             .kind(InteractionResponseType::Modal)
             .interaction_response_data(|data| {
-                data.content("Allocate your 5 stat points")
+                data.title("Allocate your 5 stat points").custom_id("stats")
                     .components(|comp| {
-                        comp.create_action_row(|row| {
-                            Attribute::VALUES.into_iter().for_each(|attr| {
+                        Attribute::VALUES.into_iter().for_each(|attr| {
+                            comp.create_action_row(|row| {
                                 let stat: String = attr.into();
                                 row.create_input_text(|inp| {
                                     inp.custom_id(&stat)
                                         .label(&stat)
                                         .style(InputTextStyle::Short)
                                         .required(true)
-                                });
+                                })
                             });
-                            row
-                        })
+                        });
+                        comp
                     })
             })
     }
@@ -362,7 +370,10 @@ mod send_modal {
         interaction
             .create_interaction_response(context, create_character_details_modal)
             .await
-            .map_err(|_e| Error::Other("Modal failed"))
+            .map_err(|err| {
+                println!("{}", err);
+                Error::Other("Modal failed")
+            })
     }
 
     fn create_character_details_modal<'a, 'b>(
@@ -371,22 +382,26 @@ mod send_modal {
         response
             .kind(InteractionResponseType::Modal)
             .interaction_response_data(|data| {
-                data.content("Who are you adventurer?").components(|comp| {
-                    comp.create_action_row(|row| {
-                        row.create_input_text(|inp| {
-                            inp.label("Name")
-                                .custom_id("name")
-                                .required(true)
-                                .style(InputTextStyle::Short)
+                data.title("Who are you adventurer?")
+                    .custom_id("character_details")
+                    .components(|comp| {
+                        comp.create_action_row(|row| {
+                            row.create_input_text(|inp| {
+                                inp.label("Name")
+                                    .custom_id("name")
+                                    .required(true)
+                                    .style(InputTextStyle::Short)
+                            })
                         })
-                        .create_input_text(|inp| {
-                            inp.label("Description")
-                                .custom_id("description")
-                                .required(true)
-                                .style(InputTextStyle::Paragraph)
+                        .create_action_row(|row| {
+                            row.create_input_text(|inp| {
+                                inp.label("Description")
+                                    .custom_id("description")
+                                    .required(true)
+                                    .style(InputTextStyle::Paragraph)
+                            })
                         })
                     })
-                })
             })
     }
 }
@@ -497,4 +512,8 @@ mod messages {
             .await
             .map_err(|_e| Error::Other("Modal failed"))
     }
+}
+
+
+fn stats_data_to_stats(stats_data : Vec<ActionRow>) -> Stats {
 }
