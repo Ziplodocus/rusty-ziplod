@@ -133,7 +133,7 @@ pub enum EncounterResultName {
 }
 
 // Return a random encounter from the storage bucket
-pub async fn get(ctx: &Context) -> Result<Encounter, Error> {
+pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
     let data = ctx.data.read().await;
 
     let storage_client = data.get::<StorageClient>().unwrap();
@@ -329,29 +329,30 @@ fn json_lingering_effect_to_struct(map: Map<String, Value>) -> Option<LingeringE
                     .try_into()
                     .expect("Should be small enough to convert to a 16 bit signed integer"),
             }),
-            _ => match map_attribute_name(effect["name"].as_str().expect("Name to be a string")) {
-                Some(name) => Some(LingeringEffect {
-                    kind: LingeringEffectType::try_from(
-                        effect["type"].as_str().expect("type to be a string"),
-                    )
-                    .unwrap_or_else(|err| {
-                        println!("Using deafult buff type. {}", err);
-                        LingeringEffectType::Buff
-                    }),
-                    name: LingeringEffectName::Stat(name),
-                    duration: effect["duration"]
-                        .as_u64()
-                        .expect("duration to be a number")
-                        .try_into()
-                        .expect("Should be small enough to convert to a 16 bit signed integer"),
-                    potency: effect["potency"]
-                        .as_u64()
-                        .expect("potency to be a number")
-                        .try_into()
-                        .expect("Should be small enough to convert to a 16 bit signed integer"),
-                }),
-                None => None,
-            },
+            _ => map_attribute_name(effect["name"].as_str().expect("Name to be a string")).map(
+                |name| {
+                    LingeringEffect {
+                        kind: LingeringEffectType::try_from(
+                            effect["type"].as_str().expect("type to be a string"),
+                        )
+                        .unwrap_or_else(|err| {
+                            println!("Using deafult buff type. {}", err);
+                            LingeringEffectType::Buff
+                        }),
+                        name: LingeringEffectName::Stat(name),
+                        duration: effect["duration"]
+                            .as_u64()
+                            .expect("duration to be a number")
+                            .try_into()
+                            .expect("Should be small enough to convert to a 16 bit signed integer"),
+                        potency: effect["potency"]
+                            .as_u64()
+                            .expect("potency to be a number")
+                            .try_into()
+                            .expect("Should be small enough to convert to a 16 bit signed integer"),
+                    }
+                },
+            ),
         },
     )
 }

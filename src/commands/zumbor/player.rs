@@ -1,3 +1,4 @@
+use core::panic;
 use std::cmp;
 
 use rand::Rng;
@@ -5,18 +6,16 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serenity::{
     builder::CreateEmbed,
-    model::{prelude::{ChannelId, component::ActionRow}, user::User},
-    prelude::Context,
-    Error,
+    model::{prelude::{ChannelId, component::{ActionRow, ActionRowComponent}}},
+    prelude::{Context},
+    Error, FutureExt,
 };
-
-use derive_builder::Builder;
 
 use crate::StorageClient;
 
 use super::effects::{Attribute, Effectable, LingeringEffect, LingeringEffectName};
 
-#[derive(Serialize, Deserialize, Builder, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Player {
     pub tag: String,
     pub description: String,
@@ -28,6 +27,19 @@ pub struct Player {
 }
 
 impl Player {
+    pub fn new(tag: String, details : PlayerDetails, stats : Stats) -> Player {
+        let PlayerDetails {name, description} = details;
+        Player {
+            tag,
+            health: 20,
+            score: 0,
+            effects: Vec::new(),
+            stats,
+            name,
+            description
+        }
+    }
+
     pub fn add_score(&mut self, score: u16) {
         self.score += score
     }
@@ -60,7 +72,7 @@ impl From<Player> for CreateEmbed {
     fn from(player: Player) -> Self {
         let mut embed = CreateEmbed::default();
 
-        // Determining color of emebed from players health
+        // Determining color of embed from players health
         let current_health: u8 = player.health.try_into().unwrap_or(255);
 
         let color: (u8, u8, u8) = (
@@ -110,8 +122,37 @@ impl Effectable for Player {
         self.stats = stats;
     }
 }
+pub struct PlayerDetails {
+    name: String,
+    description: String
+}
 
-#[derive(Clone, Serialize, Deserialize)]
+impl TryFrom<Vec<ActionRow>> for PlayerDetails {
+    type Error = serenity::Error;
+    fn try_from(details_data: Vec<ActionRow>) -> Result<Self, Self::Error> {
+        let mut name = None;
+        let mut description = None;
+        for row in details_data {
+            let component = &row.components[0];
+            let (key, value) = match component {
+                ActionRowComponent::InputText(pair) => (pair.custom_id.clone(), pair.value.clone()),
+                _ => return Err(Error::Other("Should be a text input")),
+            };
+            match key.try_into().unwrap() {
+                InputIds::Name => name = Some(value),
+                InputIds::Description => description = Some(value),
+                _ => return Err(Error::Other("Should be a InputID enum variant Name or Description"))
+            }
+        };
+
+        Ok(PlayerDetails {
+            name: name.expect("Fields should be filled out"),
+            description: description.expect("Fields should be filled out")
+        })
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct Stats {
     pub charisma: i16,
     pub strength: i16,
@@ -120,6 +161,9 @@ pub struct Stats {
 }
 
 impl Stats {
+    pub fn builder() -> StatsBuilder {
+        StatsBuilder::default()
+    }
     pub fn get(&self, key: Attribute) -> &i16 {
         match key {
             Attribute::Charisma => &self.charisma,
@@ -138,6 +182,52 @@ impl Stats {
     }
 }
 
+impl TryFrom<Vec<ActionRow>> for Stats {
+    type Error = serenity::Error;
+    fn try_from(stats_data: Vec<ActionRow>) -> Result<Self, Self::Error> {
+        let mut create_stats = Stats::builder();
+    for row in stats_data {
+        let component = &row.components[0];
+        let (name, value) = match component {
+            ActionRowComponent::InputText(pair) => (pair.custom_id.clone(), pair.value.clone()),
+            _ => panic!("Field is not an input text field"),
+        };
+        let value = value.parse::<i16>().map_err(|_e| Error::Other("Failed to parse string as i16"))?;
+
+        create_stats.set(name.try_into().expect("Id of input to be an attribute"), value);
+    };
+    create_stats.build()
+    }
+}
+
+#[derive(Default)]
+pub struct StatsBuilder {
+    charisma: Option<i16>,
+    strength: Option<i16>,
+    wisdom: Option<i16>,
+    agility: Option<i16>
+}
+impl StatsBuilder {
+    pub fn set(&mut self, key: Attribute, value: i16) -> &mut StatsBuilder {
+        match key {
+            Attribute::Charisma => self.charisma = Some(value),
+            Attribute::Strength => self.strength = Some(value),
+            Attribute::Wisdom => self.wisdom = Some(value),
+            Attribute::Agility => self.agility = Some(value),
+        };
+        self
+    }
+
+    pub fn build(self) -> Result<Stats, Error> {
+        Ok(Stats {
+            charisma: self.charisma.ok_or_else(|| Error::Other("Oh no"))?,
+            strength: self.strength.ok_or_else(|| Error::Other("Oh no"))?,
+            wisdom: self.wisdom.ok_or_else(|| Error::Other("Oh no"))?,
+            agility: self.agility.ok_or_else(|| Error::Other("Oh no"))?
+        })
+    }
+}
+
 pub enum PlayerEvent {
     EffectStart(LingeringEffectName),
     EffectEnd(LingeringEffectName),
@@ -150,8 +240,8 @@ pub struct RollResult {
 }
 
 // Gets the player's save if it exists
-pub async fn get(ctx: &Context, user_tag: String) -> Result<Player, Error> {
-    return Err(Error::Other("Manually failing get to test request player"));
+pub async fn fetch(ctx: &Context, user_tag: String) -> Result<Player, Error> {
+    // return Err(Error::Other("Manually failing get to test request player"));
     let data = ctx.data.read().await;
 
     let storage_client = data.get::<StorageClient>().unwrap();
@@ -275,9 +365,9 @@ pub async fn request_player(
 
     let interaction = await_interation::modal(&message, context, user_tag.clone()).await?;
 
-    let player_details = interaction.data.components.clone();
+    let details_data = interaction.data.components.clone();
 
-    messages::stats_request(interaction, context, user_tag.clone()).await?;
+    messages::stats_request(interaction, context).await?;
 
     let interaction = await_interation::component(&message, context, user_tag.clone()).await?;
 
@@ -285,28 +375,15 @@ pub async fn request_player(
 
     let interaction = await_interation::modal(&message, context, user_tag.clone()).await?;
 
-    interaction.create_interaction_response(context, |msg| {
-        msg.interaction_response_data(|data| data.embed(|emb| emb.title("success")))
-    }).await?;
+    message.delete(context).await;
 
     let stats_data = interaction.data.components.clone();
 
-    dbg!(player_details, stats_data);
+    let stats : Stats = stats_data.try_into()?;
 
-    Ok(Player {
-        tag: "BeefCake#2185".to_string(),
-        description: "Really good looking".to_string(),
-        name: "Handsome Jack".to_string(),
-        health: 20,
-        score: 0,
-        stats: Stats {
-            charisma: 5,
-            strength: 3,
-            wisdom: 2,
-            agility: 1,
-        },
-        effects: Vec::new(),
-    })
+    let details : PlayerDetails = details_data.try_into()?;
+
+    Ok(Player::new(user_tag, details, stats))
 }
 
 mod send_modal {
@@ -325,6 +402,8 @@ mod send_modal {
     };
 
     use crate::commands::zumbor::effects::Attribute;
+
+    use super::InputIds;
 
     pub async fn stats(
         interaction: Arc<MessageComponentInteraction>,
@@ -388,7 +467,7 @@ mod send_modal {
                         comp.create_action_row(|row| {
                             row.create_input_text(|inp| {
                                 inp.label("Name")
-                                    .custom_id("name")
+                                    .custom_id(InputIds::Name)
                                     .required(true)
                                     .style(InputTextStyle::Short)
                             })
@@ -396,7 +475,7 @@ mod send_modal {
                         .create_action_row(|row| {
                             row.create_input_text(|inp| {
                                 inp.label("Description")
-                                    .custom_id("description")
+                                    .custom_id(InputIds::Description)
                                     .required(true)
                                     .style(InputTextStyle::Paragraph)
                             })
@@ -488,7 +567,6 @@ mod messages {
     pub(crate) async fn stats_request(
         interaction: Arc<ModalSubmitInteraction>,
         context: &Context,
-        user_tag: String,
     ) -> Result<(), Error> {
         interaction
             .create_interaction_response(context, |response| {
@@ -514,6 +592,27 @@ mod messages {
     }
 }
 
+enum InputIds {
+    Name,
+    Description,
+}
 
-fn stats_data_to_stats(stats_data : Vec<ActionRow>) -> Stats {
+impl ToString for InputIds {
+    fn to_string(&self) -> String {
+        match self {
+            InputIds::Name => "name".to_owned(),
+            InputIds::Description => "description".to_owned(),
+        }
+    }
+}
+
+impl TryFrom<String> for InputIds {
+    type Error = String;
+    fn try_from(value: String) -> Result<Self, String> {
+        match value.as_str() {
+            "name" => Ok(InputIds::Name),
+            "description" => Ok(InputIds::Description),
+            _ => Err("Doesn't translate to an Input ID".to_owned())
+        }
+    }
 }

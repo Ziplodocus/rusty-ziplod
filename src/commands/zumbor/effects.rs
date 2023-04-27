@@ -55,8 +55,21 @@ impl Into<String> for Attribute {
         match self {
             Attribute::Charisma => "Charisma".to_string(),
             Attribute::Strength => "Strength".to_string(),
-            Attribute::Wisdom => "Wisdom".to_string(),
-            Attribute::Agility => "Agility".to_string(),
+            Attribute::Wisdom   => "Wisdom".to_string(),
+            Attribute::Agility  => "Agility".to_string(),
+        }
+    }
+}
+
+impl TryFrom<String> for Attribute {
+    type Error = Error;
+    fn try_from(key: String) -> Result<Attribute, Error> {
+        match key.as_str() {
+            "Charisma" | "charisma" => Ok(Attribute::Charisma),
+            "Strength" | "strength" => Ok(Attribute::Strength),
+            "Agility"  | "agility"  => Ok(Attribute::Agility),
+            "Wisdom"   | "wisdom"   => Ok(Attribute::Wisdom),
+            _ => Err(Error::Other("Not a key m8")),
         }
     }
 }

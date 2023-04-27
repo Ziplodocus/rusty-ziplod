@@ -18,7 +18,7 @@ use crate::ZumborInstances;
 use super::{
     display::{self, ContinueOption, Display},
     effects::{BaseEffect, Effectable},
-    encounter::Encounter,
+    encounter::{Encounter, self},
     player::{self, request_player, Player, Stats},
 };
 
@@ -39,13 +39,12 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         return Err(err);
     };
 
-let msg_id = msg.channel_id;
-let user_tag = user.tag();
-    let player: Player = match player::get(ctx, user.tag())
-            .await {
-                Ok(player) => player,
-                Err(_err) => request_player(msg_id, user_tag, ctx).await?
-            };
+    let msg_id = msg.channel_id;
+    let user_tag = user.tag();
+    let player: Player = match player::fetch(ctx, user.tag()).await {
+        Ok(player) => player,
+        Err(_err) => request_player(msg_id, user_tag, ctx).await?,
+    };
 
     let player_mutex: Mutex<Player> = Mutex::new(player);
 
@@ -56,7 +55,7 @@ let user_tag = user.tag();
         .build();
 
     loop {
-        let mut encounter: Encounter = Encounter::new(); //encounter::get(ctx).await?;
+        let mut encounter: Encounter = encounter::fetch(ctx).await?;
 
         let (player_choice, current_message) = display.encounter_details(&encounter).await?;
 
