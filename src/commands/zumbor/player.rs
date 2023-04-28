@@ -6,8 +6,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serenity::{
     builder::CreateEmbed,
-    model::{prelude::{ChannelId, component::{ActionRow, ActionRowComponent}}},
-    prelude::{Context},
+    model::prelude::{
+        component::{ActionRow, ActionRowComponent},
+        ChannelId,
+    },
+    prelude::Context,
     Error, FutureExt,
 };
 
@@ -27,8 +30,8 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(tag: String, details : PlayerDetails, stats : Stats) -> Player {
-        let PlayerDetails {name, description} = details;
+    pub fn new(tag: String, details: PlayerDetails, stats: Stats) -> Player {
+        let PlayerDetails { name, description } = details;
         Player {
             tag,
             health: 20,
@@ -36,7 +39,7 @@ impl Player {
             effects: Vec::new(),
             stats,
             name,
-            description
+            description,
         }
     }
 
@@ -124,7 +127,7 @@ impl Effectable for Player {
 }
 pub struct PlayerDetails {
     name: String,
-    description: String
+    description: String,
 }
 
 impl TryFrom<Vec<ActionRow>> for PlayerDetails {
@@ -141,13 +144,17 @@ impl TryFrom<Vec<ActionRow>> for PlayerDetails {
             match key.try_into().unwrap() {
                 InputIds::Name => name = Some(value),
                 InputIds::Description => description = Some(value),
-                _ => return Err(Error::Other("Should be a InputID enum variant Name or Description"))
+                _ => {
+                    return Err(Error::Other(
+                        "Should be a InputID enum variant Name or Description",
+                    ))
+                }
             }
-        };
+        }
 
         Ok(PlayerDetails {
             name: name.expect("Fields should be filled out"),
-            description: description.expect("Fields should be filled out")
+            description: description.expect("Fields should be filled out"),
         })
     }
 }
@@ -180,23 +187,37 @@ impl Stats {
             Attribute::Agility => &mut self.agility,
         }
     }
+    pub fn sum(&self) -> i16 {
+        return self.agility + self.charisma + self.strength + self.wisdom;
+    }
+    pub fn get_max(&self) -> i16 {
+        [self.agility, self.charisma, self.strength, self.wisdom]
+            .into_iter()
+            .reduce(|acc, nu| if nu > acc { nu } else { acc })
+            .expect("Array is not empty?")
+    }
 }
 
 impl TryFrom<Vec<ActionRow>> for Stats {
     type Error = serenity::Error;
     fn try_from(stats_data: Vec<ActionRow>) -> Result<Self, Self::Error> {
         let mut create_stats = Stats::builder();
-    for row in stats_data {
-        let component = &row.components[0];
-        let (name, value) = match component {
-            ActionRowComponent::InputText(pair) => (pair.custom_id.clone(), pair.value.clone()),
-            _ => panic!("Field is not an input text field"),
-        };
-        let value = value.parse::<i16>().map_err(|_e| Error::Other("Failed to parse string as i16"))?;
+        for row in stats_data {
+            let component = &row.components[0];
+            let (name, value) = match component {
+                ActionRowComponent::InputText(pair) => (pair.custom_id.clone(), pair.value.clone()),
+                _ => panic!("Field is not an input text field"),
+            };
+            let value = value
+                .parse::<i16>()
+                .map_err(|_e| Error::Other("Failed to parse string as i16"))?;
 
-        create_stats.set(name.try_into().expect("Id of input to be an attribute"), value);
-    };
-    create_stats.build()
+            create_stats.set(
+                name.try_into().expect("Id of input to be an attribute"),
+                value,
+            );
+        }
+        create_stats.build()
     }
 }
 
@@ -205,7 +226,7 @@ pub struct StatsBuilder {
     charisma: Option<i16>,
     strength: Option<i16>,
     wisdom: Option<i16>,
-    agility: Option<i16>
+    agility: Option<i16>,
 }
 impl StatsBuilder {
     pub fn set(&mut self, key: Attribute, value: i16) -> &mut StatsBuilder {
@@ -223,7 +244,7 @@ impl StatsBuilder {
             charisma: self.charisma.ok_or_else(|| Error::Other("Oh no"))?,
             strength: self.strength.ok_or_else(|| Error::Other("Oh no"))?,
             wisdom: self.wisdom.ok_or_else(|| Error::Other("Oh no"))?,
-            agility: self.agility.ok_or_else(|| Error::Other("Oh no"))?
+            agility: self.agility.ok_or_else(|| Error::Other("Oh no"))?,
         })
     }
 }
@@ -241,7 +262,9 @@ pub struct RollResult {
 
 // Gets the player's save if it exists
 pub async fn fetch(ctx: &Context, user_tag: String) -> Result<Player, Error> {
-    // return Err(Error::Other("Manually failing get to test request player"));
+    return Err(Error::Other(
+        "Manually failing fetch to test request player",
+    ));
     let data = ctx.data.read().await;
 
     let storage_client = data.get::<StorageClient>().unwrap();
@@ -359,29 +382,59 @@ pub async fn request_player(
 ) -> Result<Player, Error> {
     let message = messages::character_details_request(channel, context).await?;
 
-    let interaction = await_interation::component(&message, context, user_tag.clone()).await?;
+    let interaction = await_interaction::component(&message, context, user_tag.clone()).await?;
 
     send_modal::character_details(interaction, context).await?;
 
-    let interaction = await_interation::modal(&message, context, user_tag.clone()).await?;
+    let interaction = await_interaction::modal(&message, context, user_tag.clone()).await?;
 
     let details_data = interaction.data.components.clone();
 
     messages::stats_request(interaction, context).await?;
 
-    let interaction = await_interation::component(&message, context, user_tag.clone()).await?;
+    let interaction = await_interaction::component(&message, context, user_tag.clone()).await?;
 
     send_modal::stats(interaction, context).await?;
 
-    let interaction = await_interation::modal(&message, context, user_tag.clone()).await?;
-
-    message.delete(context).await;
+    let interaction = await_interaction::modal(&message, context, user_tag.clone()).await?;
 
     let stats_data = interaction.data.components.clone();
 
-    let stats : Stats = stats_data.try_into()?;
+    let mut stats: Stats = stats_data.try_into()?;
 
-    let details : PlayerDetails = details_data.try_into()?;
+    println!("Sum is {} and max is {}", stats.sum(), stats.get_max());
+
+    let mut loop_int = interaction.clone();
+    println!("Is invalid?: {}", stats.sum() > 5 && stats.get_max() > 5);
+    while stats.sum() > 5 || stats.get_max() > 5 {
+        println!("Start loop");
+
+        messages::stats_re_request(loop_int, context).await?;
+        println!("Re request stats...");
+
+        let interaction =
+        await_interaction::component(&message, context, user_tag.clone()).await?;
+        println!("Awaited button click...");
+
+        send_modal::stats(interaction, context).await?;
+        println!("Sent next modal");
+
+        loop_int = await_interaction::modal(&message, context, user_tag.clone()).await?;
+        println!("Awaited modal interaction");
+
+        let stats_data = loop_int.data.components.clone();
+
+        stats = match stats_data.try_into() {
+            Ok(val) => val,
+            Err(_err) => continue
+        };
+
+        println!("Sum is {} and max is {}", stats.sum(), stats.get_max());
+    }
+
+    message.delete(context).await;
+
+    let details: PlayerDetails = details_data.try_into()?;
 
     Ok(Player::new(user_tag, details, stats))
 }
@@ -413,7 +466,7 @@ mod send_modal {
             .create_interaction_response(context, create_stats_modal)
             .await
             .map_err(|err| {
-                println!("{}", err);
+                println!("Stats modal fail... {}", err);
                 Error::Other("Modal failed")
             })
     }
@@ -424,7 +477,9 @@ mod send_modal {
         response
             .kind(InteractionResponseType::Modal)
             .interaction_response_data(|data| {
-                data.title("Allocate your 5 stat points").custom_id("stats")
+                data.title("Allocate your 5 stat points")
+                    .content("The total of your stats must be less than 5, and no individual stat may exceed 5")
+                    .custom_id("stats")
                     .components(|comp| {
                         Attribute::VALUES.into_iter().for_each(|attr| {
                             comp.create_action_row(|row| {
@@ -485,7 +540,7 @@ mod send_modal {
     }
 }
 
-mod await_interation {
+mod await_interaction {
     use std::{sync::Arc, time::Duration};
 
     use serenity::{
@@ -588,6 +643,38 @@ mod messages {
                     })
             })
             .await
+            .map_err(|_e| {
+                dbg!(_e);
+                Error::Other("Modal failed")
+            })
+    }
+
+    pub(crate) async fn stats_re_request(
+        interaction: Arc<ModalSubmitInteraction>,
+        context: &Context,
+    ) -> Result<(), Error> {
+        interaction
+            .create_interaction_response(context, |response| {
+                response
+                    .kind(InteractionResponseType::UpdateMessage)
+                    .interaction_response_data(|message| {
+                        message
+                            .embed(|embed| {
+                                embed.title("The stats you have chosen are too powerful for you...")
+                            })
+                            .components(|comps| {
+                                comps.create_action_row(|row| {
+                                    row.create_button(|button| {
+                                        button
+                                            .custom_id("stats")
+                                            .label("Choose Again")
+                                            .style(ButtonStyle::Primary)
+                                    })
+                                })
+                            })
+                    })
+            })
+            .await
             .map_err(|_e| Error::Other("Modal failed"))
     }
 }
@@ -612,7 +699,7 @@ impl TryFrom<String> for InputIds {
         match value.as_str() {
             "name" => Ok(InputIds::Name),
             "description" => Ok(InputIds::Description),
-            _ => Err("Doesn't translate to an Input ID".to_owned())
+            _ => Err("Doesn't translate to an Input ID".to_owned()),
         }
     }
 }
