@@ -63,7 +63,7 @@ impl StorageClient {
             ..Default::default()
         };
 
-        let save_name = "zumbor/".to_string() + &path + ".json";
+        let save_name = path + ".json";
 
         let upload_media = Media {
             name: Cow::Owned(save_name),

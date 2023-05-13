@@ -11,6 +11,21 @@ pub enum BaseEffect {
     Health(BaseHealthEffect),
 }
 
+impl BaseEffect {
+    pub fn get_potency(&self) -> i16 {
+        match self {
+            BaseEffect::Stat(eff) => eff.potency,
+            BaseEffect::Health(eff) => eff.potency,
+        }
+    }
+    pub fn set_potency(&mut self, potency: i16) -> () {
+        match self {
+            BaseEffect::Stat(eff) => eff.potency = potency,
+            BaseEffect::Health(eff) => eff.potency = potency,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BaseHealthEffect {
     pub potency: i16,
@@ -55,8 +70,8 @@ impl Into<String> for Attribute {
         match self {
             Attribute::Charisma => "Charisma".to_string(),
             Attribute::Strength => "Strength".to_string(),
-            Attribute::Wisdom   => "Wisdom".to_string(),
-            Attribute::Agility  => "Agility".to_string(),
+            Attribute::Wisdom => "Wisdom".to_string(),
+            Attribute::Agility => "Agility".to_string(),
         }
     }
 }
@@ -67,8 +82,8 @@ impl TryFrom<String> for Attribute {
         match key.as_str() {
             "Charisma" | "charisma" => Ok(Attribute::Charisma),
             "Strength" | "strength" => Ok(Attribute::Strength),
-            "Agility"  | "agility"  => Ok(Attribute::Agility),
-            "Wisdom"   | "wisdom"   => Ok(Attribute::Wisdom),
+            "Agility" | "agility" => Ok(Attribute::Agility),
+            "Wisdom" | "wisdom" => Ok(Attribute::Wisdom),
             _ => Err(Error::Other("Not a key m8")),
         }
     }
@@ -105,8 +120,8 @@ pub struct LingeringEffect {
     pub duration: i16,
 }
 
-impl From<LingeringEffect> for CreateEmbed {
-    fn from(effect: LingeringEffect) -> Self {
+impl From<&LingeringEffect> for CreateEmbed {
+    fn from(effect: &LingeringEffect) -> Self {
         let LingeringEffect {
             name,
             kind,
@@ -143,8 +158,8 @@ impl Display for LingeringEffectName {
     }
 }
 
-impl From<LingeringEffectName> for Colour {
-    fn from(effect_name: LingeringEffectName) -> Self {
+impl From<&LingeringEffectName> for Colour {
+    fn from(effect_name: &LingeringEffectName) -> Self {
         match effect_name {
             LingeringEffectName::Poison => Colour::PURPLE,
             LingeringEffectName::Regenerate => Colour::FABLED_PINK,

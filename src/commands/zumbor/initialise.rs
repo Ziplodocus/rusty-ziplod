@@ -1,5 +1,7 @@
-use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt, rc::Rc, sync::Arc, time::Duration};
 
+use derive_builder::Builder;
+use google_cloud_storage::http::channels::Channel;
 use serenity::{
     builder::CreateEmbed,
     futures::lock::{Mutex, MutexGuard},
@@ -16,21 +18,20 @@ use serenity::{
 use crate::ZumborInstances;
 
 use super::{
-    display::{self, ContinueOption, Display},
     effects::{BaseEffect, Effectable},
-    encounter::{Encounter, self},
-    player::{self, request_player, Player, Stats},
+    encounter::{self, Encounter},
+    player::{self, Player, RollResult, Stats},
+    ui::{ContinueOption, UI},
 };
 
 pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
-    // let mut running_games: HashMap<UserId, bool> = HashMap::new();
-
     let user: &User = &msg.author;
+    let channel_id = msg.channel_id;
 
     if let Err(err) = add_player_to_instance(ctx, user.id).await {
         nice_message(
             ctx,
-            msg.channel_id,
+            channel_id,
             "You Fail!".to_string(),
             "You already have a running instance of Zumbor you fool!".to_string(),
         )
@@ -39,66 +40,41 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         return Err(err);
     };
 
-    let msg_id = msg.channel_id;
-    let user_tag = user.tag();
-    let player: Player = match player::fetch(ctx, user.tag()).await {
-        Ok(player) => player,
-        Err(_err) => request_player(msg_id, user_tag, ctx).await?,
-    };
-
-    let player_mutex: Mutex<Player> = Mutex::new(player);
-
-    let mut display: Display = Display::builder()
-        .channel(msg.channel_id)
-        .context(ctx)
-        .player(&player_mutex)
-        .build();
+    let mut player = player::get(ctx, &user.tag(), channel_id).await?;
+    let mut ui = UI::builder().context(ctx).channel(channel_id).build();
 
     loop {
         let mut encounter: Encounter = encounter::fetch(ctx).await?;
 
-        let (player_choice, current_message) = display.encounter_details(&encounter).await?;
+        let (player_choice, current_message) = ui.encounter_details(&encounter, &player).await?;
 
         let encounter_option = encounter
-            .options
-            .get_mut(&player_choice)
+            .get_option(&player_choice)
             .expect("Player choice should be limited to encounter option keys");
 
-        let mut player: MutexGuard<Player> = player_mutex.lock().await;
         let player_roll = player.roll_stat(&encounter_option.stat);
 
-        let encounter_result = if player_roll.value >= encounter_option.threshold.into() {
-            &mut encounter_option.success
-        } else {
-            &mut encounter_option.fail
-        };
+        let encounter_result = encounter_option.test(&player_roll);
 
-        // dbg!(encounter_result.clone());
-
+        // Handle base effect of the result
         if let Some(effect) = &mut encounter_result.base_effect {
-            // dbg!(effect.clone());
-            match effect {
-                BaseEffect::Stat(eff) => {
-                    if player_roll.critical {
-                        eff.potency *= 2;
-                    }
+            match player_roll {
+                RollResult::CriticalFail | RollResult::CriticalSuccess => {
+                    effect.set_potency(effect.get_potency() * 2);
                 }
-                BaseEffect::Health(eff) => {
-                    if player_roll.critical {
-                        eff.potency *= 2;
-                    }
-                }
-            }
-            player.affect(effect)
+                _ => (),
+            };
+            player.affect(&effect)
         }
 
-        if let Some(effect) = encounter_result.lingering_effect.clone() {
+        // Handle lingering effects of the result
+        if let Some(effect) = &encounter_result.lingering_effect {
             println!("Added lingering effect: {}", effect.name);
-            let mut gain_embed: CreateEmbed = effect.clone().into();
+            let mut gain_embed: CreateEmbed = effect.into();
             gain_embed.title(format!("Received a {} {}", effect.name, effect.kind));
-            gain_embed.colour::<Colour>(effect.name.clone().into());
-            display.queue_message(gain_embed);
-            player.add_effect(effect)
+            gain_embed.colour::<Colour>((&effect.name).into());
+            ui.queue_message(gain_embed);
+            player.add_effect(effect.clone())
         }
 
         for effect in player.get_effects() {
@@ -110,37 +86,32 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
                     ),
                     None,
                 );
-                display.queue_message(end_embed);
+                ui.queue_message(end_embed);
             }
         }
         player.apply_effects();
         player.add_score(1);
 
-        drop(player);
-
-        if let Err(err) = display
-            .encounter_result(&encounter_result, current_message)
+        if let Err(err) = ui
+            .encounter_result(&encounter_result, &player, current_message)
             .await
         {
             println!("Unable to display the encounter result. {}", err);
         }
 
-        let mut player: MutexGuard<Player> = player_mutex.lock().await;
-
         if player.health <= 0 {
             player.effects.clear();
 
-            display
-                .say(format!("Uh oh {} died", &player.name).as_ref())
+            ui.say(format!("Uh oh {} died", &player.name).as_ref())
                 .await;
 
             // match scoreboard.update(player).await {
             //     Ok(did_win) => match did_win {
-            //         true => display.say("You win, you winner!"),
-            //         false => display.say("You lose, loser!"),
+            //         true => ui.say("You win, you winner!"),
+            //         false => ui.say("You lose, loser!"),
             //     },
             //     Err(err) => {
-            //         display.say("Fetching scoreboard failed!");
+            //         ui.say("Fetching scoreboard failed!");
             //         println!("{}", err)
             //     }
             // };
@@ -149,9 +120,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             return Ok(true);
         }
 
-        drop(player);
-
-        let resume_playing: ContinueOption = display.request_continue().await?;
+        let resume_playing: ContinueOption = ui.request_continue(&player).await?;
 
         if let ContinueOption::Continue = resume_playing {
             continue;
@@ -159,37 +128,16 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 
         remove_player_from_instance(ctx, user.id).await;
 
-        {
-            let mut data = ctx.data.write().await;
-            let zumbor = data.get_mut::<ZumborInstances>().unwrap();
-            if zumbor.instances.contains(&user.id) {
-                nice_message(
-                    ctx,
-                    msg.channel_id,
-                    "You're already playing...".to_string(),
-                    "".to_string(),
-                )
-                .await
-                .expect("To be able to send a message without error");
-                return Err(Error::Other(
-                    "The user currently has an active Zumbor instance",
-                ));
-            }
-            zumbor.instances.push(user.id);
-        }
-
-        let player: MutexGuard<Player> = player_mutex.lock().await;
-
-        display.queue_message(quick_embed(
+        ui.queue_message(quick_embed(
             "Resting...".to_owned(),
             Some(player.name.clone() + " takes a break"),
         ));
 
         match player::save(ctx, &player).await {
-            Ok(_saved) => display.queue_message(quick_embed("Save Succesful.".to_string(), None)),
+            Ok(_saved) => ui.queue_message(quick_embed("Save Succesful.".to_string(), None)),
             Err(err) => {
                 println!("{}", err);
-                display.queue_message(quick_embed(
+                ui.queue_message(quick_embed(
                     "Ruh Roh Wraggy...".to_string(),
                     Some(format!(
                         "Something went wrong while saving... Say goodbye to {}",
@@ -199,30 +147,30 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             }
         }
 
-        display.send_messages().await.unwrap();
+        ui.send_messages().await.unwrap();
 
-        // running_games.remove(&user.id);
+        remove_player_from_instance(ctx, user.id).await;
 
         break;
     }
     Ok(true)
 }
 
-// fn initialise_player_events(player: Player, display: Display) {
+// fn initialise_player_events(player: Player, ui: Display) {
 //     player.on(PlayerEvent::EffectStart, |&player, effect: Effect| {
-//         display.queue_embed(format!(
+//         ui.queue_embed(format!(
 //             "{} has received a {} {}",
 //             player.name, effect.name, effect.typ
 //         ));
 //     });
 //     player.on(PlayerEvent::EffectEnd, |&player, effect: Effect| {
-//         display.queue_embed(format!(
+//         ui.queue_embed(format!(
 //             "{}'s {} {} has ended",
 //             player.name, effect.name, effect.typ
 //         ));
 //     });
 //     player.on(PlayerEvent::EffectApplied, |&player, effect: Effect| {
-//         display.queue_embed(format!(
+//         ui.queue_embed(format!(
 //             "{} has received a {} {}",
 //             player.name, effect.name, effect.typ
 //         ));

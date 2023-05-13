@@ -1,5 +1,5 @@
 use core::panic;
-use std::cmp;
+use std::{cmp, rc::Rc};
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -59,20 +59,16 @@ impl Player {
         let mut rng = rand::thread_rng();
         let roll = rng.gen_range(1..20);
 
-        let critical = if (roll == 1) | (roll == 20) {
-            true
-        } else {
-            false
-        };
-
-        let value = roll + self.stats.get(stat.clone());
-
-        RollResult { critical, value }
+        match roll {
+            1 => RollResult::CriticalFail,
+            20 => RollResult::CriticalSuccess,
+            num => RollResult::Value(num + self.stats.get(stat.clone())),
+        }
     }
 }
 
-impl From<Player> for CreateEmbed {
-    fn from(player: Player) -> Self {
+impl From<&Player> for CreateEmbed {
+    fn from(player: &Player) -> Self {
         let mut embed = CreateEmbed::default();
 
         // Determining color of embed from players health
@@ -90,9 +86,9 @@ impl From<Player> for CreateEmbed {
         use Attribute::{Agility, Charisma, Strength, Wisdom};
 
         embed
-            .author(|author| author.name(player.tag))
-            .title(player.name)
-            .description(player.description)
+            .author(|author| author.name(&player.tag))
+            .title(&player.name)
+            .description(&player.description)
             .color(color)
             .field("Score", player.score, true)
             .field("Health", player.health, true)
@@ -255,20 +251,31 @@ pub enum PlayerEvent {
     EffectApplied(LingeringEffect),
 }
 
-pub struct RollResult {
-    pub critical: bool,
-    pub value: i16,
+pub enum RollResult {
+    CriticalFail,
+    CriticalSuccess,
+    Value(i16),
 }
 
-// Gets the player's save if it exists
-pub async fn fetch(ctx: &Context, user_tag: String) -> Result<Player, Error> {
-    return Err(Error::Other(
-        "Manually failing fetch to test request player",
-    ));
+// Attempt to fetch an existing player save, or if that fails
+// start the process to create a new player
+pub async fn get(
+    context: &Context,
+    user_tag: &String,
+    channel_id: ChannelId,
+) -> Result<Player, Error> {
+    match fetch(context, user_tag).await {
+        Ok(player) => Ok(player),
+        Err(_err) => request(channel_id, user_tag, context).await,
+    }
+}
+
+// Fetches the player's save if it exists
+async fn fetch(ctx: &Context, user_tag: &String) -> Result<Player, Error> {
     let data = ctx.data.read().await;
 
     let storage_client = data.get::<StorageClient>().unwrap();
-    let path = "zumbor/saves/".to_string() + &user_tag + ".json";
+    let path = "zumbor/saves/".to_string() + user_tag + ".json";
 
     let bytes = storage_client.download(path).await?;
 
@@ -362,22 +369,10 @@ pub async fn fetch(ctx: &Context, user_tag: String) -> Result<Player, Error> {
     Ok(player)
 }
 
-pub async fn save(ctx: &Context, player: &Player) -> Result<(), Error> {
-    let data = ctx.data.read().await;
-
-    let storage_client = data
-        .get::<StorageClient>()
-        .ok_or(Error::Other("Storage client not accessible!"))?;
-
-    let player_json: String = serde_json::to_string(player).map_err(|err| Error::from(err))?;
-    let save_name = "zumbor/saves/".to_string() + &player.tag;
-
-    storage_client.upload_json(save_name, player_json).await
-}
-
-pub async fn request_player(
+// Sends messages & modals relevant to create a new player
+async fn request(
     channel: ChannelId,
-    user_tag: String,
+    user_tag: &String,
     context: &Context,
 ) -> Result<Player, Error> {
     let message = messages::character_details_request(channel, context).await?;
@@ -412,8 +407,7 @@ pub async fn request_player(
         messages::stats_re_request(loop_int, context).await?;
         println!("Re request stats...");
 
-        let interaction =
-        await_interaction::component(&message, context, user_tag.clone()).await?;
+        let interaction = await_interaction::component(&message, context, user_tag.clone()).await?;
         println!("Awaited button click...");
 
         send_modal::stats(interaction, context).await?;
@@ -426,7 +420,7 @@ pub async fn request_player(
 
         stats = match stats_data.try_into() {
             Ok(val) => val,
-            Err(_err) => continue
+            Err(_err) => continue,
         };
 
         println!("Sum is {} and max is {}", stats.sum(), stats.get_max());
@@ -436,7 +430,20 @@ pub async fn request_player(
 
     let details: PlayerDetails = details_data.try_into()?;
 
-    Ok(Player::new(user_tag, details, stats))
+    Ok(Player::new(user_tag.clone(), details, stats))
+}
+
+pub async fn save(ctx: &Context, player: &Player) -> Result<(), Error> {
+    let data = ctx.data.read().await;
+
+    let storage_client = data
+        .get::<StorageClient>()
+        .ok_or(Error::Other("Storage client not accessible!"))?;
+
+    let player_json: String = serde_json::to_string(player).map_err(|err| Error::from(err))?;
+    let save_name = "zumbor/saves/".to_string() + &player.tag;
+
+    storage_client.upload_json(save_name, player_json).await
 }
 
 mod send_modal {

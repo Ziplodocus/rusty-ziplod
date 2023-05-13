@@ -1,5 +1,5 @@
 use std::{
-    any::Any, cmp, collections::VecDeque, fmt, ops::Deref, panic, str::FromStr, sync::Arc,
+    any::Any, cmp, collections::VecDeque, fmt, ops::Deref, panic, rc::Rc, str::FromStr, sync::Arc,
     time::Duration,
 };
 
@@ -27,17 +27,16 @@ use super::{
     player::Player,
 };
 
-pub struct Display<'a> {
+pub struct UI<'a> {
     context: &'a Context,
     channel: ChannelId,
-    player: &'a Mutex<Player>,
     interaction: Option<Arc<MessageComponentInteraction>>,
     messages: VecDeque<CreateEmbed>,
 }
 
-impl Display<'_> {
-    pub fn builder() -> DisplayBuilder<'static> {
-        DisplayBuilder::default()
+impl UI<'_> {
+    pub fn builder() -> UIBuilder<'static> {
+        UIBuilder::default()
     }
 
     pub async fn say(&self, message_content: &str) -> () {
@@ -47,31 +46,16 @@ impl Display<'_> {
     pub async fn encounter_details(
         &mut self,
         encounter: &Encounter,
+        player: &Player,
     ) -> Result<(String, Message), Error> {
-        let player = self.player.lock().await.clone();
         let user_tag = player.tag.clone();
 
         let message = self
             .channel
             .send_message(self.context, |message| {
-                message.set_embed(player.into()).add_embed(|emb| {
-                    emb.title(&encounter.title)
-                        .description(&encounter.text)
-                        .color(encounter.color.unwrap_or_default())
-                });
-
-                message.components(|components| {
-                    components.create_action_row(|row| {
-                        for (label, _) in &encounter.options {
-                            row.create_button(|but| {
-                                but.custom_id(&label)
-                                    .label(&label)
-                                    .style(ButtonStyle::Primary)
-                            });
-                        }
-                        row
-                    })
-                })
+                message
+                    .set_embeds(vec![player.into(), encounter.into()])
+                    .set_components(encounter.into())
             })
             .await;
 
@@ -106,11 +90,9 @@ impl Display<'_> {
     pub async fn encounter_result(
         &mut self,
         result: &EncounterResult,
+        player: &Player,
         mut message: Message,
     ) -> Result<Message, Error> {
-        let player = self.player.lock().await;
-        let name = player.name.clone();
-
         message.embeds.remove(0);
 
         message
@@ -118,38 +100,20 @@ impl Display<'_> {
                 msg.add_embed(|emb| {
                     emb.title(format!(
                         "{} chose to {}",
-                        name,
+                        player.name,
                         self.interaction.as_ref().expect("Exists!").data.custom_id
                     ))
                 })
-                .add_embed(|emb| {
-                    if let Some(effect) = &result.base_effect {
-                        match effect {
-                            BaseEffect::Stat(eff) => {
-                                emb.field(&eff.name, eff.potency, true);
-                            }
-                            BaseEffect::Health(eff) => {
-                                emb.field("Health", eff.potency, true);
-                            }
-                        }
-                    }
-
-                    emb.title(&result.title)
-                        .description(&result.text)
-                        .colour(match &result.kind {
-                            EncounterResultName::Success(_) => Colour::from((20, 240, 60)),
-                            EncounterResultName::Fail(_) => Colour::from((240, 40, 20)),
-                        })
-                })
+                .add_embeds(vec![result.into()])
                 .add_embeds(self.get_queued_messages().into_iter().collect())
                 .components(|comp| comp)
             })
             .await?;
+
         Ok(message)
     }
 
-
-    pub async fn request_continue(&self) -> Result<ContinueOption, Error> {
+    pub async fn request_continue(&self, player: &Player) -> Result<ContinueOption, Error> {
         println!("Requesting continue!");
         let message = self
             .channel
@@ -171,11 +135,8 @@ impl Display<'_> {
 
         match message {
             Ok(message) => {
+                let user_tag = player.tag.clone();
                 let context = self.context.clone();
-
-                let player_guard = self.player.lock().await;
-                let user_tag: String = player_guard.deref().tag.clone();
-                drop(player_guard);
 
                 let interaction = message
                     .await_component_interaction(self.context)
@@ -205,15 +166,9 @@ impl Display<'_> {
         }
     }
 
-    pub async fn send_player_info(&self) -> Result<Message, Error> {
-        let player_guard = self.player.lock().await;
-        let player: Player = player_guard.deref().clone();
-
+    pub async fn send_player_info(&self, player: &Player) -> Result<Message, Error> {
         self.channel
-            .send_message(self.context, |msg| {
-                msg.set_embed(player.into());
-                msg
-            })
+            .send_message(self.context, |msg| msg.set_embed(player.into()))
             .await
     }
 
@@ -237,13 +192,12 @@ impl Display<'_> {
 }
 
 #[derive(Default)]
-pub struct DisplayBuilder<'a> {
+pub struct UIBuilder<'a> {
     context: Option<&'a Context>,
     channel: Option<ChannelId>,
-    player: Option<&'a Mutex<Player>>,
 }
 
-impl<'a> DisplayBuilder<'a> {
+impl<'a> UIBuilder<'a> {
     pub fn context(mut self, context: &'a Context) -> Self {
         self.context = Some(&context);
         self
@@ -254,16 +208,8 @@ impl<'a> DisplayBuilder<'a> {
         self
     }
 
-    pub fn player(mut self, player: &'a Mutex<Player>) -> Self {
-        self.player = Some(player);
-        self
-    }
-
-    pub fn build(self) -> Display<'a> {
-        Display {
-            player: self
-                .player
-                .expect("Player should be added to the builder before building"),
+    pub fn build(self) -> UI<'a> {
+        UI {
             context: self
                 .context
                 .expect("Context should be added to the builder before building"),

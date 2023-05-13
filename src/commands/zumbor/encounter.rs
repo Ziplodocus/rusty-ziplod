@@ -13,8 +13,9 @@ use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use serde_json::{Error as JsonError, Map, Value};
 use serenity::{
-    builder::CreateEmbed,
+    builder::{CreateComponents, CreateEmbed},
     futures::lock::MutexGuard,
+    model::prelude::{component::ButtonStyle, Message},
     prelude::Context,
     utils::{Color, Colour},
     Error,
@@ -22,9 +23,12 @@ use serenity::{
 
 use crate::{commands::zumbor::effects::map_attribute_name, StorageClient};
 
-use super::effects::{
-    Attribute, BaseEffect, BaseHealthEffect, BaseStatEffect, LingeringEffect, LingeringEffectName,
-    LingeringEffectType,
+use super::{
+    effects::{
+        Attribute, BaseEffect, BaseHealthEffect, BaseStatEffect, LingeringEffect,
+        LingeringEffectName, LingeringEffectType,
+    },
+    player::RollResult,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -36,16 +40,36 @@ pub struct Encounter {
 }
 
 impl Encounter {
-    pub fn new() -> Self {
-        let mut options = HashMap::new();
-        options.insert("Win".into(), EncounterOption::default());
+    pub fn get_option(&mut self, name: &String) -> Option<&mut EncounterOption> {
+        self.options.get_mut(name)
+    }
+}
 
-        Encounter {
-            title: "hey".to_owned(),
-            text: "yeah".to_owned(),
-            color: None,
-            options,
-        }
+impl From<&Encounter> for CreateEmbed {
+    fn from(enc: &Encounter) -> CreateEmbed {
+        let mut embed = CreateEmbed::default();
+        embed
+            .title(&enc.title)
+            .description(&enc.text)
+            .color(enc.color.unwrap_or_default());
+        embed
+    }
+}
+
+impl From<&Encounter> for CreateComponents {
+    fn from(enc: &Encounter) -> CreateComponents {
+        let mut components = CreateComponents::default();
+        components.create_action_row(|row| {
+            enc.options.iter().for_each(|(label, _)| {
+                row.create_button(|but| {
+                    but.custom_id(&label)
+                        .label(&label)
+                        .style(ButtonStyle::Primary)
+                });
+            });
+            row
+        });
+        components
     }
 }
 
@@ -57,35 +81,18 @@ pub struct EncounterOption {
     pub fail: EncounterResult,
 }
 
-impl Default for EncounterOption {
-    fn default() -> EncounterOption {
-        EncounterOption {
-            threshold: 10,
-            stat: Attribute::Strength,
-            success: EncounterResult {
-                kind: EncounterResultName::Success("Oh yeah".into()),
-                title: "You gone Wonned it!".into(),
-                text: "The good stuff is all happening now".into(),
-                base_effect: Some(BaseEffect::Health(BaseHealthEffect { potency: 5 })),
-                lingering_effect: Some(LingeringEffect {
-                    kind: LingeringEffectType::Buff,
-                    name: LingeringEffectName::Regenerate,
-                    potency: 3,
-                    duration: 4,
-                }),
-            },
-            fail: EncounterResult {
-                kind: EncounterResultName::Success("Oh no".into()),
-                title: "You gone fucked up".into(),
-                text: "Something bad has happened".into(),
-                base_effect: Some(BaseEffect::Health(BaseHealthEffect { potency: 5 })),
-                lingering_effect: Some(LingeringEffect {
-                    kind: LingeringEffectType::Debuff,
-                    name: LingeringEffectName::Poison,
-                    potency: 3,
-                    duration: 4,
-                }),
-            },
+impl EncounterOption {
+    pub fn test(&mut self, roll: &RollResult) -> &mut EncounterResult {
+        match roll {
+            RollResult::CriticalFail => &mut self.fail,
+            RollResult::CriticalSuccess => &mut self.success,
+            RollResult::Value(num) => {
+                if *num >= self.threshold.into() {
+                    &mut self.success
+                } else {
+                    &mut self.fail
+                }
+            }
         }
     }
 }
@@ -99,8 +106,8 @@ pub struct EncounterResult {
     pub lingering_effect: Option<LingeringEffect>,
 }
 
-impl From<EncounterResult> for CreateEmbed {
-    fn from(result: EncounterResult) -> CreateEmbed {
+impl From<&EncounterResult> for CreateEmbed {
+    fn from(result: &EncounterResult) -> CreateEmbed {
         let mut embed = CreateEmbed::default();
 
         embed
@@ -330,27 +337,25 @@ fn json_lingering_effect_to_struct(map: Map<String, Value>) -> Option<LingeringE
                     .expect("Should be small enough to convert to a 16 bit signed integer"),
             }),
             _ => map_attribute_name(effect["name"].as_str().expect("Name to be a string")).map(
-                |name| {
-                    LingeringEffect {
-                        kind: LingeringEffectType::try_from(
-                            effect["type"].as_str().expect("type to be a string"),
-                        )
-                        .unwrap_or_else(|err| {
-                            println!("Using deafult buff type. {}", err);
-                            LingeringEffectType::Buff
-                        }),
-                        name: LingeringEffectName::Stat(name),
-                        duration: effect["duration"]
-                            .as_u64()
-                            .expect("duration to be a number")
-                            .try_into()
-                            .expect("Should be small enough to convert to a 16 bit signed integer"),
-                        potency: effect["potency"]
-                            .as_u64()
-                            .expect("potency to be a number")
-                            .try_into()
-                            .expect("Should be small enough to convert to a 16 bit signed integer"),
-                    }
+                |name| LingeringEffect {
+                    kind: LingeringEffectType::try_from(
+                        effect["type"].as_str().expect("type to be a string"),
+                    )
+                    .unwrap_or_else(|err| {
+                        println!("Using deafult buff type. {}", err);
+                        LingeringEffectType::Buff
+                    }),
+                    name: LingeringEffectName::Stat(name),
+                    duration: effect["duration"]
+                        .as_u64()
+                        .expect("duration to be a number")
+                        .try_into()
+                        .expect("Should be small enough to convert to a 16 bit signed integer"),
+                    potency: effect["potency"]
+                        .as_u64()
+                        .expect("potency to be a number")
+                        .try_into()
+                        .expect("Should be small enough to convert to a 16 bit signed integer"),
                 },
             ),
         },
