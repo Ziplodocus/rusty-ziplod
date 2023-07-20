@@ -105,6 +105,9 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             ui.say(format!("Uh oh {} died", &player.name).as_ref())
                 .await;
 
+            if let Err(err) = player::delete(ctx, &player).await {
+                println!("Unable to delete the player save. {}", err);
+            };
             // match scoreboard.update(player).await {
             //     Ok(did_win) => match did_win {
             //         true => ui.say("You win, you winner!"),
@@ -148,8 +151,6 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         }
 
         ui.send_messages().await.unwrap();
-
-        remove_player_from_instance(ctx, user.id).await;
 
         break;
     }
@@ -229,6 +230,7 @@ async fn add_player_to_instance(ctx: &Context, user_id: UserId) -> Result<bool, 
         ))
     } else {
         zumbor.instances.push(user_id);
+        println!("{:?}",zumbor.instances);
         Ok(true)
     }
 }
@@ -237,7 +239,8 @@ async fn remove_player_from_instance(ctx: &Context, user_id: UserId) {
     let mut data = ctx.data.write().await;
     let zumbor = data.get_mut::<ZumborInstances>().unwrap();
     // Ignore if no such element is found
-    if let Some(pos) = zumbor.instances.iter().position(|x| *x == user_id) {
-        zumbor.instances.remove(pos);
+    println!("{:?}",zumbor.instances);
+    if zumbor.instances.iter().filter(|x| **x == user_id).collect::<Vec<&UserId>>().len() == 1 {
+        zumbor.instances.remove(0);
     }
 }
