@@ -134,6 +134,9 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
                 .say(format!("Uh oh {} died", &player.name).as_ref())
                 .await;
 
+            if let Err(err) = player::delete(ctx, &player).await {
+                println!("Unable to delete the player save. {}", err);
+            };
             // match scoreboard.update(player).await {
             //     Ok(did_win) => match did_win {
             //         true => display.say("You win, you winner!"),
@@ -159,25 +162,6 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 
         remove_player_from_instance(ctx, user.id).await;
 
-        {
-            let mut data = ctx.data.write().await;
-            let zumbor = data.get_mut::<ZumborInstances>().unwrap();
-            if zumbor.instances.contains(&user.id) {
-                nice_message(
-                    ctx,
-                    msg.channel_id,
-                    "You're already playing...".to_string(),
-                    "".to_string(),
-                )
-                .await
-                .expect("To be able to send a message without error");
-                return Err(Error::Other(
-                    "The user currently has an active Zumbor instance",
-                ));
-            }
-            zumbor.instances.push(user.id);
-        }
-
         let player: MutexGuard<Player> = player_mutex.lock().await;
 
         display.queue_message(quick_embed(
@@ -200,8 +184,6 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         }
 
         display.send_messages().await.unwrap();
-
-        // running_games.remove(&user.id);
 
         break;
     }
@@ -281,6 +263,7 @@ async fn add_player_to_instance(ctx: &Context, user_id: UserId) -> Result<bool, 
         ))
     } else {
         zumbor.instances.push(user_id);
+        println!("{:?}",zumbor.instances);
         Ok(true)
     }
 }
@@ -289,7 +272,8 @@ async fn remove_player_from_instance(ctx: &Context, user_id: UserId) {
     let mut data = ctx.data.write().await;
     let zumbor = data.get_mut::<ZumborInstances>().unwrap();
     // Ignore if no such element is found
-    if let Some(pos) = zumbor.instances.iter().position(|x| *x == user_id) {
-        zumbor.instances.remove(pos);
+    println!("{:?}",zumbor.instances);
+    if zumbor.instances.iter().filter(|x| **x == user_id).collect::<Vec<&UserId>>().len() == 1 {
+        zumbor.instances.remove(0);
     }
 }

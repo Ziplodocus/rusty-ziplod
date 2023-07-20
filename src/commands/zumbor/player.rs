@@ -262,9 +262,6 @@ pub struct RollResult {
 
 // Gets the player's save if it exists
 pub async fn fetch(ctx: &Context, user_tag: String) -> Result<Player, Error> {
-    return Err(Error::Other(
-        "Manually failing fetch to test request player",
-    ));
     let data = ctx.data.read().await;
 
     let storage_client = data.get::<StorageClient>().unwrap();
@@ -360,6 +357,17 @@ pub async fn fetch(ctx: &Context, user_tag: String) -> Result<Player, Error> {
     };
 
     Ok(player)
+}
+
+pub async fn delete(ctx: &Context, player: &Player) -> Result<(), Error> {
+    let data = ctx.data.read().await;
+
+    let storage_client = data
+        .get::<StorageClient>()
+        .ok_or(Error::Other("Storage client not accessible!"))?;
+
+    dbg!(&player.tag);
+    storage_client.remove_json("zumbor/saves/".to_string() + &player.tag).await
 }
 
 pub async fn save(ctx: &Context, player: &Player) -> Result<(), Error> {
