@@ -154,7 +154,7 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
     };
 
     let list = client
-        .list_objects(&list_request, None)
+        .list_objects(&list_request)
         .await
         .unwrap()
         .items
@@ -171,7 +171,7 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
     let range = Range::default();
 
     let byte_array = client
-        .download_object(&request, &range, None)
+        .download_object(&request, &range)
         .await
         .unwrap();
 
@@ -180,6 +180,8 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
     // V2 encounters should be serializable straight to a struct
     if let Ok(encounter) = encounter {
         return Ok(encounter);
+    } else {
+        println!("Failed to deserialize {:?}", encounter);
     }
 
     // Handles previous versions of the Encounter object
@@ -236,7 +238,7 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
         options,
     };
 
-    // dbg!(encounter.clone());
+    dbg!(&encounter);
 
     let upload_request = UploadObjectRequest {
         bucket: "ziplod-assets".into(),
@@ -258,7 +260,6 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
             &upload_request,
             encounter_json,
             &UploadType::Simple(upload_media),
-            Default::default(),
         )
         .await
         .map_err(|err| {

@@ -6,12 +6,8 @@ use std::env;
 use commands::{ping::PING_COMMAND, zumbor::ZUMBOR_COMMAND};
 pub mod config;
 use config::Config;
-use google_cloud_default::WithAuthExt;
-use google_cloud_storage::client::{Client as GoogClient, ClientConfig as GoogClientConfig};
-use serde_json::json;
 use serenity::{
     framework::{standard::macros::group, StandardFramework},
-    futures::lock::Mutex,
     model::prelude::UserId,
     prelude::{EventHandler, TypeMapKey},
     Client,
@@ -61,7 +57,7 @@ async fn main() {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ZumborInstances {
     instances: Vec<UserId>,
 }

@@ -47,14 +47,6 @@ impl Player {
         self.score += score
     }
 
-    pub async fn remove(&self) -> Result<&str, Error> {
-        todo!()
-    }
-
-    pub async fn save(&self) -> Result<bool, Error> {
-        todo!()
-    }
-
     pub fn roll_stat(&self, stat: &Attribute) -> RollResult {
         let mut rng = rand::thread_rng();
         let roll = rng.gen_range(1..20);
@@ -369,8 +361,31 @@ async fn fetch(ctx: &Context, user_tag: &String) -> Result<Player, Error> {
     Ok(player)
 }
 
-// Sends messages & modals relevant to create a new player
-async fn request(
+pub async fn delete(ctx: &Context, player: &Player) -> Result<(), Error> {
+    let data = ctx.data.read().await;
+
+    let storage_client = data
+        .get::<StorageClient>()
+        .ok_or(Error::Other("Storage client not accessible!"))?;
+
+    dbg!(&player.tag);
+    storage_client.remove_json("zumbor/saves/".to_string() + &player.tag).await
+}
+
+pub async fn save(ctx: &Context, player: &Player) -> Result<(), Error> {
+    let data = ctx.data.read().await;
+
+    let storage_client = data
+        .get::<StorageClient>()
+        .ok_or(Error::Other("Storage client not accessible!"))?;
+
+    let player_json: String = serde_json::to_string(player).map_err(|err| Error::from(err))?;
+    let save_name = "zumbor/saves/".to_string() + &player.tag;
+
+    storage_client.upload_json(save_name, player_json).await
+}
+
+pub async fn request(
     channel: ChannelId,
     user_tag: &String,
     context: &Context,
@@ -431,19 +446,6 @@ async fn request(
     let details: PlayerDetails = details_data.try_into()?;
 
     Ok(Player::new(user_tag.clone(), details, stats))
-}
-
-pub async fn save(ctx: &Context, player: &Player) -> Result<(), Error> {
-    let data = ctx.data.read().await;
-
-    let storage_client = data
-        .get::<StorageClient>()
-        .ok_or(Error::Other("Storage client not accessible!"))?;
-
-    let player_json: String = serde_json::to_string(player).map_err(|err| Error::from(err))?;
-    let save_name = "zumbor/saves/".to_string() + &player.tag;
-
-    storage_client.upload_json(save_name, player_json).await
 }
 
 mod send_modal {
