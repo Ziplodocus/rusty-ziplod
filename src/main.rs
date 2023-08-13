@@ -1,5 +1,6 @@
 mod commands;
 mod storage;
+mod utilities;
 use std::env;
 
 use commands::{ping::PING_COMMAND, zumbor::ZUMBOR_COMMAND};

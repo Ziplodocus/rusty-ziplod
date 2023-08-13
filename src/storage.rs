@@ -45,7 +45,7 @@ impl StorageClient {
         self.client
             .download_object(&request, &range, None)
             .await
-            .map_err(|_| Error::Other("User does not have a player saved"))
+            .map_err(|_| Error::Other("Failed to fetch the specified object"))
     }
 
     pub async fn download_json<T: for<'a> Deserialize<'a>>(
