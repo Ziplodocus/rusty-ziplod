@@ -1,5 +1,5 @@
 use serenity::{
-    model::prelude::{Channel, ChannelType, GuildChannel, Message},
+    model::prelude::{ChannelType, GuildChannel, Message},
     prelude::Context,
 };
 
@@ -15,7 +15,8 @@ pub async fn resolve_voice_channel(ctx: &Context, msg: &Message) -> Option<Guild
         msg.reply(
             ctx,
             "You can't mention someone not in the channel you fool.",
-        );
+        )
+        .await;
         return None;
     }
     let member = maybe_member.unwrap();
@@ -26,14 +27,15 @@ pub async fn resolve_voice_channel(ctx: &Context, msg: &Message) -> Option<Guild
         msg.reply(
             ctx,
             "The guild member must be in a voice channel you numpty",
-        );
+        )
+        .await;
         return None;
     }
 
     let channel = maybe_channel.unwrap();
 
     if channel.kind != ChannelType::Voice {
-        msg.reply(ctx, "Not a voice channel m9");
+        msg.reply(ctx, "Not a voice channel m9").await;
         return None;
     }
 

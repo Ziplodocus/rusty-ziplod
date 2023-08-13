@@ -1,7 +1,6 @@
-use std::{collections::HashMap, num::ParseIntError, sync::Arc};
+use std::{collections::HashMap};
 
 use google_cloud_storage::{
-    client::Client,
     http::objects::{
         download::Range,
         get::GetObjectRequest,
@@ -11,13 +10,12 @@ use google_cloud_storage::{
 };
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
-use serde_json::{Error as JsonError, Map, Value};
+use serde_json::{Map, Value};
 use serenity::{
     builder::{CreateComponents, CreateEmbed},
-    futures::lock::MutexGuard,
-    model::prelude::{component::ButtonStyle, Message},
+    model::prelude::{component::ButtonStyle},
     prelude::Context,
-    utils::{Color, Colour},
+    utils::{Colour},
     Error,
 };
 

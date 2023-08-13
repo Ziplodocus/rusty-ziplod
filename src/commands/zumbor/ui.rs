@@ -1,28 +1,24 @@
 use std::{
-    any::Any, cmp, collections::VecDeque, fmt, ops::Deref, panic, rc::Rc, str::FromStr, sync::Arc,
+    collections::VecDeque, fmt, panic, sync::Arc,
     time::Duration,
 };
 
 use serenity::{
-    builder::{self, CreateComponents, CreateEmbed},
-    futures::lock::Mutex,
+    builder::{CreateEmbed},
     model::{
         prelude::{
-            component::ButtonStyle,
             interaction::{
-                message_component::MessageComponentInteraction, InteractionResponseType,
-            },
-            ChannelCategory, ChannelId, ChannelType, Embed, Message, UserId,
+                message_component::MessageComponentInteraction,
+            }, ChannelId, Message,
         },
-        user::User,
     },
     prelude::Context,
-    utils::{Colour, MessageBuilder},
+    utils::{Colour},
     Error,
 };
 
 use super::{
-    effects::{Attribute, BaseEffect},
+    effects::{BaseEffect},
     encounter::{Encounter, EncounterResult, EncounterResultName},
     player::Player,
 };

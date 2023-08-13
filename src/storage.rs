@@ -12,7 +12,7 @@ use google_cloud_storage::{
 };
 use serde::Deserialize;
 use serenity::{
-    prelude::{Context, TypeMapKey},
+    prelude::{TypeMapKey},
     Error,
 };
 
@@ -22,10 +22,13 @@ pub struct StorageClient {
 
 impl StorageClient {
     pub async fn new() -> Self {
-        let storage_config = ClientConfig::default().with_auth().await.unwrap_or_else(|err| {
-            println!("{:?}", err);
-            panic!("{:?}", err);
-        });
+        let storage_config = ClientConfig::default()
+            .with_auth()
+            .await
+            .unwrap_or_else(|err| {
+                println!("{:?}", err);
+                panic!("{:?}", err);
+            });
         let client = Client::new(storage_config);
 
         StorageClient { client }
@@ -38,13 +41,10 @@ impl StorageClient {
             ..Default::default()
         };
 
-        self.client
-            .delete_object(&request)
-            .await
-            .map_err(|err| {
-                println!("{}", err);
-                Error::Other("Failed to delete the player")
-            })
+        self.client.delete_object(&request).await.map_err(|err| {
+            println!("{}", err);
+            Error::Other("Failed to delete the player")
+        })
     }
 
     pub async fn download(&self, path: String) -> Result<Vec<u8>, Error> {
@@ -90,11 +90,7 @@ impl StorageClient {
         };
 
         self.client
-            .upload_object(
-                &upload_request,
-                content,
-                &UploadType::Simple(upload_media),
-            )
+            .upload_object(&upload_request, content, &UploadType::Simple(upload_media))
             .await
             .map_err(|err| {
                 dbg!(err);

@@ -1,5 +1,5 @@
 use core::panic;
-use std::{cmp, rc::Rc};
+use std::{cmp};
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use serenity::{
         ChannelId,
     },
     prelude::Context,
-    Error, FutureExt,
+    Error,
 };
 
 use crate::StorageClient;
@@ -341,7 +341,7 @@ async fn fetch(ctx: &Context, user_tag: &String) -> Result<Player, Error> {
                 .expect("Good number"),
         })
     } else {
-        Err(Error::Other(("Stats should be an object / hash map")))
+        Err(Error::Other("Stats should be an object / hash map"))
     }?;
 
     println!("Starting desrialise of effects..");
@@ -369,7 +369,9 @@ pub async fn delete(ctx: &Context, player: &Player) -> Result<(), Error> {
         .ok_or(Error::Other("Storage client not accessible!"))?;
 
     dbg!(&player.tag);
-    storage_client.remove_json("zumbor/saves/".to_string() + &player.tag).await
+    storage_client
+        .remove_json("zumbor/saves/".to_string() + &player.tag)
+        .await
 }
 
 pub async fn save(ctx: &Context, player: &Player) -> Result<(), Error> {

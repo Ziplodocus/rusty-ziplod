@@ -1,9 +1,8 @@
 mod commands;
 mod storage;
 mod utilities;
-use std::env;
 
-use commands::{ping::PING_COMMAND, zumbor::ZUMBOR_COMMAND};
+use commands::{ping::PING_COMMAND, play::PLAY_COMMAND, zumbor::ZUMBOR_COMMAND};
 pub mod config;
 use config::Config;
 use serenity::{
@@ -15,7 +14,7 @@ use serenity::{
 use storage::StorageClient;
 
 #[group]
-#[commands(ping, zumbor)]
+#[commands(ping, zumbor, play)]
 struct General;
 
 struct Handler;

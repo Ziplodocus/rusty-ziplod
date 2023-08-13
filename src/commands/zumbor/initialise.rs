@@ -1,10 +1,9 @@
-use std::{collections::HashMap, fmt, rc::Rc, sync::Arc, time::Duration};
 
-use derive_builder::Builder;
-use google_cloud_storage::http::channels::Channel;
+
+
+
 use serenity::{
     builder::CreateEmbed,
-    futures::lock::{Mutex, MutexGuard},
     http::Http,
     model::{
         prelude::{ChannelId, Message, UserId},
@@ -18,9 +17,9 @@ use serenity::{
 use crate::ZumborInstances;
 
 use super::{
-    effects::{BaseEffect, Effectable},
+    effects::{Effectable},
     encounter::{self, Encounter},
-    player::{self, Player, RollResult, Stats},
+    player::{self, RollResult},
     ui::{ContinueOption, UI},
 };
 
