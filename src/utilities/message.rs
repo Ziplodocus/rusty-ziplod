@@ -1,9 +1,9 @@
 use serenity::{
-    model::prelude::{ChannelType, GuildChannel, Message},
+    model::prelude::{ChannelType, Guild, GuildChannel, Member, Message},
     prelude::Context,
 };
 
-pub async fn resolve_voice_channel(ctx: &Context, msg: &Message) -> Option<GuildChannel> {
+pub async fn resolve_voice_channel(ctx: &Context, msg: &Message) -> Result<GuildChannel, String> {
     let user = msg.mentions.get(0).unwrap_or(&msg.author);
     let guild = msg
         .guild(ctx)
@@ -12,32 +12,37 @@ pub async fn resolve_voice_channel(ctx: &Context, msg: &Message) -> Option<Guild
     let maybe_member = guild.member(ctx, user).await;
 
     if maybe_member.is_err() {
-        msg.reply(
-            ctx,
-            "You can't mention someone not in the channel you fool.",
-        )
-        .await;
-        return None;
+        return Err("You can't mention someone not in the guild you fool.".into());
     }
     let member = maybe_member.unwrap();
 
-    let maybe_channel = member.default_channel(ctx);
+    return fetch_voice_channel(ctx, &guild, &member).await;
+}
 
-    if maybe_channel.is_none() {
-        msg.reply(
-            ctx,
-            "The guild member must be in a voice channel you numpty",
-        )
-        .await;
-        return None;
+pub async fn fetch_voice_channel(
+    ctx: &Context,
+    guild: &Guild,
+    member: &Member,
+) -> Result<GuildChannel, String> {
+    let channels = guild.channels(ctx).await.expect("Guild is available");
+
+    for (_, channel) in channels {
+        if channel.kind != ChannelType::Voice {
+            continue;
+        };
+
+        let members = channel
+            .members(ctx)
+            .await
+            .expect("A voice channel has the concept of members");
+
+        if members
+            .iter()
+            .any(move |channel_member| channel_member.user == member.user)
+        {
+            return Ok(channel);
+        }
     }
 
-    let channel = maybe_channel.unwrap();
-
-    if channel.kind != ChannelType::Voice {
-        msg.reply(ctx, "Not a voice channel m9").await;
-        return None;
-    }
-
-    return Some(channel);
+    return Err("No voice channel found for that user".to_owned());
 }

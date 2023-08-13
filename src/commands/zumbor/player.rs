@@ -1,5 +1,5 @@
 use core::panic;
-use std::{cmp};
+use std::{cmp, rc::Rc};
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use serenity::{
         ChannelId,
     },
     prelude::Context,
-    Error,
+    Error, FutureExt,
 };
 
 use crate::StorageClient;
@@ -129,14 +129,18 @@ impl TryFrom<Vec<ActionRow>> for PlayerDetails {
                 ActionRowComponent::InputText(pair) => (pair.custom_id.clone(), pair.value.clone()),
                 _ => return Err(Error::Other("Should be a text input")),
             };
-            match key.try_into().unwrap() {
+
+            let maybe_detail = key.try_into();
+
+            if maybe_detail.is_err() {
+                return Err(Error::Other(
+                    "Should be a InputID enum variant Name or Description",
+                ));
+            }
+
+            match maybe_detail.unwrap() {
                 InputIds::Name => name = Some(value),
                 InputIds::Description => description = Some(value),
-                _ => {
-                    return Err(Error::Other(
-                        "Should be a InputID enum variant Name or Description",
-                    ))
-                }
             }
         }
 

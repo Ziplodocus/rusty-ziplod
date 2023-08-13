@@ -1,10 +1,13 @@
 mod commands;
+mod config;
 mod storage;
 mod utilities;
 
 use commands::{ping::PING_COMMAND, play::PLAY_COMMAND, zumbor::ZUMBOR_COMMAND};
-pub mod config;
 use config::Config;
+
+use songbird::SerenityInit;
+
 use serenity::{
     framework::{standard::macros::group, StandardFramework},
     model::prelude::UserId,
@@ -33,6 +36,7 @@ async fn main() {
     let mut client = Client::builder(config.token, config.intents)
         .event_handler(Handler)
         .framework(framework)
+        .register_songbird()
         .await
         .expect("Couldn't create new client!");
 
