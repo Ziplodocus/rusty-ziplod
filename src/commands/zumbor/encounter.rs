@@ -1,13 +1,8 @@
-use std::{collections::HashMap};
+use std::{collections::HashMap, future};
+use crate::errors::Error;
 
-use google_cloud_storage::{
-    http::objects::{
-        download::Range,
-        get::GetObjectRequest,
-        list::ListObjectsRequest,
-        upload::{Media, UploadObjectRequest, UploadType},
-    },
-};
+
+use cloud_storage::{ListRequest, object::ObjectList, Object};
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -16,8 +11,9 @@ use serenity::{
     model::prelude::{component::ButtonStyle},
     prelude::Context,
     utils::{Colour},
-    Error,
+    futures::StreamExt,
 };
+use tracing_subscriber::fmt::format::DefaultFields;
 
 use crate::{commands::zumbor::effects::map_attribute_name, StorageClient};
 
@@ -145,33 +141,48 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
 
     let client = &storage_client.client;
 
-    let list_request = ListObjectsRequest {
-        bucket: "ziplod-assets".into(),
-        prefix: Some("zumbor/encounters".into()),
-        ..ListObjectsRequest::default()
-    };
-
-    let list = client
-        .list_objects(&list_request)
-        .await
-        .unwrap()
-        .items
-        .unwrap();
-
-    let object = list.choose(&mut rand::thread_rng()).unwrap();
-
-    let request = GetObjectRequest {
-        bucket: "ziplod-assets".into(),
-        object: object.name.clone(),
+    let list = client.object().list(&storage_client.bucket_name, ListRequest {
+        prefix: Some("zumbor/encounters".to_owned()),
         ..Default::default()
-    };
+    }).await?;
 
-    let range = Range::default();
+    let mut objects = vec!();
+    list.for_each(|list| {
+        let mut items = list.unwrap().items;
+        objects.append(&mut items);
+        future::ready(())
+    });
 
-    let byte_array = client
-        .download_object(&request, &range)
-        .await
-        .unwrap();
+    // let list_request = ListObjectsRequest {
+    //     bucket: "ziplod-assets".into(),
+    //     prefix: Some("zumbor/encounters".into()),
+    //     ..ListObjectsRequest::default()
+    // };
+
+    // let list = client
+    //     .list_objects(&list_request)
+    //     .await
+    //     .unwrap()
+    //     .items
+    //     .unwrap();
+
+    let object = objects.choose(&mut rand::thread_rng()).unwrap();
+
+    let byte_array = storage_client.download(&object.name).await?;
+
+    // let request = GetObjectRequest {
+    //     bucket: "ziplod-assets".into(),
+    //     object: object.name.clone(),
+    //     ..Default::default()
+    // };
+
+    // let range = Range::default();
+
+
+    // let byte_array = client
+    //     .download_object(&request, &range)
+    //     .await
+    //     .unwrap();
 
     let encounter: Result<Encounter, _> = serde_json::from_slice(&byte_array);
 
@@ -236,34 +247,38 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
         options,
     };
 
-    dbg!(&encounter);
-
-    let upload_request = UploadObjectRequest {
-        bucket: "ziplod-assets".into(),
-        ..Default::default()
-    };
-
-    let encounter_json: String =
-        serde_json::to_string(&encounter).map_err(|err| Error::from(err))?;
-
     let encounter_name = object
         .name
         .as_str()
         .replace("/encounters/", "/encounters/v2/");
 
-    let upload_media = Media::new(encounter_name);
+    let encounter_json: String =
+        serde_json::to_string(&encounter).map_err(|err| Error::from(err))?;
 
-    client
-        .upload_object(
-            &upload_request,
-            encounter_json,
-            &UploadType::Simple(upload_media),
-        )
-        .await
-        .map_err(|err| {
-            dbg!(err);
-            Error::Other("Failed to upload object")
-        })?;
+    dbg!(&encounter);
+
+    storage_client.upload_json(&encounter_name, encounter_json).await?;
+
+    // client.upload();
+
+    // let upload_request = UploadObjectRequest {
+    //     bucket: "ziplod-assets".into(),
+    //     ..Default::default()
+    // };
+
+    // let upload_media = Media::new(encounter_name);
+
+    // client
+    //     .upload_object(
+    //         &upload_request,
+    //         encounter_json,
+    //         &UploadType::Simple(upload_media),
+    //     )
+    //     .await
+    //     .map_err(|err| {
+    //         dbg!(err);
+    //         Error::Other("Failed to upload object")
+    //     })?;
 
     Ok(encounter)
 }

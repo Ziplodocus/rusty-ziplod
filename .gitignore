@@ -2,3 +2,4 @@
 src/config.rs
 ziplod-google-auth.json
 .vscode
+.env

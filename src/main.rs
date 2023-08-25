@@ -1,19 +1,26 @@
 mod commands;
-mod config;
 mod storage;
 mod utilities;
+mod errors;
+
+use std::env;
 
 use commands::{ping::PING_COMMAND, play::PLAY_COMMAND, zumbor::ZUMBOR_COMMAND};
-use config::Config;
 
-use songbird::SerenityInit;
+// Import the `Context` to handle commands.
+use serenity::client::{ClientBuilder, Context};
 
+use serenity::framework::standard::macros::group;
+use serenity::framework::StandardFramework;
+use serenity::prelude::GatewayIntents;
 use serenity::{
-    framework::{standard::macros::group, StandardFramework},
+    client::{Client, EventHandler},
     model::prelude::UserId,
-    prelude::{EventHandler, TypeMapKey},
-    Client,
+    prelude::TypeMapKey,
 };
+
+use songbird::serenity::{register, SerenityInit};
+
 use storage::StorageClient;
 
 #[group]
@@ -27,13 +34,15 @@ impl EventHandler for Handler {}
 
 #[tokio::main]
 async fn main() {
-    let config = Config::new();
+    let token = env::var("DISCORD_TOKEN").expect("token");
+    let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
+    let bucket_name = env::var("CLOUD_BUCKET_NAME").expect("Bucekt name");
 
     let framework = StandardFramework::new()
-        .configure(|c| c.prefix(config.prefix))
+        .configure(|c| c.prefix("!"))
         .group(&GENERAL_GROUP);
 
-    let mut client = Client::builder(config.token, config.intents)
+    let mut client = Client::builder(&token, intents)
         .event_handler(Handler)
         .framework(framework)
         .register_songbird()
@@ -44,7 +53,7 @@ async fn main() {
         // Make the storage client available to the context
         let mut data = client.data.write().await;
 
-        let storage_client = StorageClient::new().await;
+        let storage_client = StorageClient::new(bucket_name).await;
 
         data.insert::<StorageClient>(storage_client);
     }
@@ -67,4 +76,8 @@ pub struct ZumborInstances {
 
 impl TypeMapKey for ZumborInstances {
     type Value = ZumborInstances;
+}
+
+fn test(a: impl SerenityInit) -> impl SerenityInit {
+    return a.register_songbird();
 }

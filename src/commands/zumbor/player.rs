@@ -273,7 +273,7 @@ async fn fetch(ctx: &Context, user_tag: &String) -> Result<Player, Error> {
     let storage_client = data.get::<StorageClient>().unwrap();
     let path = "zumbor/saves/".to_string() + user_tag + ".json";
 
-    let bytes = storage_client.download(path).await?;
+    let bytes = storage_client.download(&path).await?;
 
     let maybe_player: Result<Player, Error> =
         serde_json::from_slice(&bytes).map_err(|err| Error::Json(err));

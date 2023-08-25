@@ -1,103 +1,66 @@
 use std::borrow::Cow;
+use crate::errors::Error;
 
-use google_cloud_default::WithAuthExt;
-use google_cloud_storage::{
-    client::{Client, ClientConfig},
-    http::objects::{
-        delete::DeleteObjectRequest,
-        download::Range,
-        get::GetObjectRequest,
-        upload::{Media, UploadObjectRequest, UploadType},
-    },
-};
+use cloud_storage::Client;
+// use google_cloud_default::WithAuthExt;
+// use google_cloud_storage::{
+//     client::{Client, ClientConfig},
+//     http::objects::{
+//         delete::DeleteObjectRequest,
+//         download::Range,
+//         get::GetObjectRequest,
+//         upload::{Media, UploadObjectRequest, UploadType},
+//     },
+// };
 use serde::Deserialize;
 use serenity::{
     prelude::{TypeMapKey},
-    Error,
 };
 
 pub struct StorageClient {
-    pub client: google_cloud_storage::client::Client,
+    pub client: cloud_storage::Client,
+    pub bucket: cloud_storage::Bucket,
+    pub bucket_name: String
 }
 
 impl StorageClient {
-    pub async fn new() -> Self {
-        let storage_config = ClientConfig::default()
-            .with_auth()
-            .await
-            .unwrap_or_else(|err| {
-                println!("{:?}", err);
-                panic!("{:?}", err);
-            });
-        let client = Client::new(storage_config);
-
-        StorageClient { client }
+    pub async fn new(bucket_name: String) -> Self {
+        let client = Client::new();
+        let bucket = client.bucket().read(&bucket_name).await.expect("Bucket Success");
+        StorageClient { client, bucket, bucket_name }
     }
 
-    pub async fn remove(&self, path: String) -> Result<(), Error> {
-        let request = DeleteObjectRequest {
-            bucket: "ziplod-assets".into(),
-            object: path,
-            ..Default::default()
-        };
-
-        self.client.delete_object(&request).await.map_err(|err| {
+    pub async fn remove(&self, path: &String) -> Result<(), Error> {
+        self.client.object().delete(&self.bucket_name, path).await.map_err(|err| {
             println!("{}", err);
-            Error::Other("Failed to delete the player")
+            Error::Plain("Failed to delete the player")
         })
     }
 
-    pub async fn download(&self, path: String) -> Result<Vec<u8>, Error> {
-        let request = GetObjectRequest {
-            bucket: "ziplod-assets".into(),
-            object: path,
-            ..Default::default()
-        };
-
-        let range = Range::default();
-
-        self.client
-            .download_object(&request, &range)
-            .await
-            .map_err(|_| Error::Other("Failed to fetch the specified object"))
+    pub async fn download(&self, path: &String) -> Result<Vec<u8>, Error> {
+        self.client.object().download(&self.bucket_name, &path).await.map_err(|err| {err.into()})
     }
 
     pub async fn remove_json(&self, path: String) -> Result<(), Error> {
-        self.remove(path + ".json").await
+        self.remove(&(path + ".json")).await
     }
 
     pub async fn download_json<T: for<'a> Deserialize<'a>>(
         &self,
         path: String,
     ) -> Result<T, Error> {
-        let bytes = self.download(path + ".json").await?;
+        let bytes = self.download(&(path + ".json")).await?;
 
         serde_json::from_slice::<T>(&bytes).map_err(|err| Error::Json(err))
     }
 
-    pub async fn upload_json(&self, path: String, content: String) -> Result<(), Error> {
-        let upload_request = UploadObjectRequest {
-            bucket: "ziplod-assets".into(),
-            ..Default::default()
-        };
-
-        let save_name = path + ".json";
-
-        let upload_media = Media {
-            name: Cow::Owned(save_name),
-            content_type: Cow::Borrowed("application/json"),
-            content_length: Some(content.len().try_into().unwrap()),
-        };
-
-        self.client
-            .upload_object(&upload_request, content, &UploadType::Simple(upload_media))
-            .await
-            .map_err(|err| {
-                dbg!(err);
-                Error::Other("Failed to upload object")
-            })?;
-
+    pub async fn upload(&self, content: String, path: &str, mime_type: &str) -> Result<(), Error> {
+        self.client.object().create(&self.bucket_name, content.into(), path, mime_type).await?;
         Ok(())
+    }
+
+    pub async fn upload_json(&self, path: &str, content: String) -> Result<(), Error> {
+        self.upload(content, path, "application/json").await
     }
 }
 

@@ -11,10 +11,10 @@ use serenity::{
     },
     prelude::Context,
     utils::Colour,
-    Error,
 };
 
 use crate::ZumborInstances;
+use crate::errors::Error;
 
 use super::{
     effects::{Effectable},
@@ -200,11 +200,12 @@ async fn nice_message(
     title: String,
     description: String,
 ) -> Result<Message, Error> {
-    channel_id
+    let res = channel_id
         .send_message(ctx, |msg| {
             msg.embed(|emb| emb.title(title).description(description))
         })
-        .await
+        .await?;
+    Ok(res)
 }
 
 fn quick_embed(title: String, description: Option<String>) -> CreateEmbed {
@@ -224,9 +225,7 @@ async fn add_player_to_instance(ctx: &Context, user_id: UserId) -> Result<bool, 
     let mut data = ctx.data.write().await;
     let zumbor = data.get_mut::<ZumborInstances>().unwrap();
     if zumbor.instances.contains(&user_id) {
-        Err(Error::Other(
-            "The user currently has an active Zumbor instance",
-        ))
+        Err(Error::Plain("The user currently has an active Zumbor instance"))
     } else {
         zumbor.instances.push(user_id);
         println!("{:?}",zumbor.instances);
