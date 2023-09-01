@@ -1,5 +1,5 @@
 use core::panic;
-use std::{cmp, rc::Rc};
+use std::{cmp};
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,6 @@ use serenity::{
         ChannelId,
     },
     prelude::Context,
-    FutureExt,
 };
 
 use crate::{errors::Error, StorageClient};

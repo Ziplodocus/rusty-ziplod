@@ -8,7 +8,7 @@ use std::env;
 use commands::{ping::PING_COMMAND, play::PLAY_COMMAND, zumbor::ZUMBOR_COMMAND};
 
 // Import the `Context` to handle commands.
-use serenity::client::{ClientBuilder, Context};
+
 
 use serenity::framework::standard::macros::group;
 use serenity::framework::StandardFramework;
@@ -19,7 +19,7 @@ use serenity::{
     prelude::TypeMapKey,
 };
 
-use songbird::serenity::{register, SerenityInit};
+use songbird::serenity::{SerenityInit};
 
 use storage::StorageClient;
 
@@ -37,7 +37,7 @@ async fn main() {
     let token = env::var("DISCORD_TOKEN").expect("token");
     let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
     let bucket_name = env::var("CLOUD_BUCKET_NAME").expect("Bucket name");
-    let prefix = env::var("COMMAND_PREFIX").expect("Prefix is defined");
+    let _prefix = env::var("COMMAND_PREFIX").expect("Prefix is defined");
 
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("!"))

@@ -2,7 +2,7 @@ use std::{collections::HashMap, future};
 use crate::errors::Error;
 
 
-use cloud_storage::{ListRequest, object::ObjectList, Object};
+use cloud_storage::{ListRequest};
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -13,7 +13,7 @@ use serenity::{
     utils::{Colour},
     futures::StreamExt,
 };
-use tracing_subscriber::fmt::format::DefaultFields;
+
 
 use crate::{commands::zumbor::effects::map_attribute_name, StorageClient};
 

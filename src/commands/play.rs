@@ -1,4 +1,4 @@
-use std::mem::MaybeUninit;
+
 
 use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
@@ -67,7 +67,7 @@ async fn count_tracks(_track_type: &str) -> i32 {
     return 1;
 }
 
-async fn fetch_track(ctx: &Context, track_type: String, track_num: i32) -> Result<Vec<u8>, Error> {
+async fn fetch_track(ctx: &Context, _track_type: String, _track_num: i32) -> Result<Vec<u8>, Error> {
     let data = ctx.data.read().await;
     let storage_client = data.get::<StorageClient>().unwrap();
     storage_client
@@ -76,7 +76,7 @@ async fn fetch_track(ctx: &Context, track_type: String, track_num: i32) -> Resul
 }
 
 async fn play_audio_from_stream_in_channel(
-    audio_stream: Vec<u8>,
+    _audio_stream: Vec<u8>,
     channel: ChannelId,
 ) -> Result<(), Error> {
     println!("Playing audio in channel {channel}");
