@@ -1,4 +1,3 @@
-
 use crate::errors::Error;
 
 use cloud_storage::Client;
@@ -13,32 +12,53 @@ use cloud_storage::Client;
 //     },
 // };
 use serde::Deserialize;
-use serenity::{
-    prelude::{TypeMapKey},
-};
+use serenity::{futures::Stream, prelude::TypeMapKey};
 
+#[derive(Debug)]
 pub struct StorageClient {
     pub client: cloud_storage::Client,
     pub bucket: cloud_storage::Bucket,
-    pub bucket_name: String
+    pub bucket_name: String,
 }
 
 impl StorageClient {
     pub async fn new(bucket_name: String) -> Self {
         let client = Client::new();
-        let bucket = client.bucket().read(&bucket_name).await.expect("Bucket Success");
-        StorageClient { client, bucket, bucket_name }
+        let bucket = client
+            .bucket()
+            .read(&bucket_name)
+            .await
+            .expect("Bucket Success");
+        StorageClient {
+            client,
+            bucket,
+            bucket_name,
+        }
     }
 
     pub async fn remove(&self, path: &String) -> Result<(), Error> {
-        self.client.object().delete(&self.bucket_name, path).await.map_err(|err| {
-            println!("{}", err);
-            Error::Plain("Failed to delete the player")
-        })
+        self.client
+            .object()
+            .delete(&self.bucket_name, path)
+            .await
+            .map_err(|err| {
+                println!("{}", err);
+                Error::Plain("Failed to delete the player")
+            })
+    }
+
+    pub async fn download_stream(&self, path: &String) -> Result<impl Stream, Error> {
+        let object = self.client.object();
+        let maybe_obj = object.download_streamed(&self.bucket_name, &path);
+        println!("Streaming object.");
+        maybe_obj.await.map_err(|o| o.into())
     }
 
     pub async fn download(&self, path: &String) -> Result<Vec<u8>, Error> {
-        self.client.object().download(&self.bucket_name, &path).await.map_err(|err| {err.into()})
+        let object = self.client.object();
+        let maybe_obj = object.download(&self.bucket_name, &path);
+        println!("Downloaded object.");
+        maybe_obj.await.map_err(|o| o.into())
     }
 
     pub async fn remove_json(&self, path: String) -> Result<(), Error> {
@@ -55,7 +75,10 @@ impl StorageClient {
     }
 
     pub async fn upload(&self, content: String, path: &str, mime_type: &str) -> Result<(), Error> {
-        self.client.object().create(&self.bucket_name, content.into(), path, mime_type).await?;
+        self.client
+            .object()
+            .create(&self.bucket_name, content.into(), path, mime_type)
+            .await?;
         Ok(())
     }
 

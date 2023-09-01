@@ -1,19 +1,17 @@
-use std::{collections::HashMap, future};
 use crate::errors::Error;
+use std::{collections::HashMap, future};
 
-
-use cloud_storage::{ListRequest};
+use cloud_storage::ListRequest;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use serenity::{
     builder::{CreateComponents, CreateEmbed},
-    model::prelude::{component::ButtonStyle},
-    prelude::Context,
-    utils::{Colour},
     futures::StreamExt,
+    model::prelude::component::ButtonStyle,
+    prelude::Context,
+    utils::Colour,
 };
-
 
 use crate::{commands::zumbor::effects::map_attribute_name, StorageClient};
 
@@ -141,48 +139,31 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
 
     let client = &storage_client.client;
 
-    let list = client.object().list(&storage_client.bucket_name, ListRequest {
-        prefix: Some("zumbor/encounters".to_owned()),
-        ..Default::default()
-    }).await?;
+    let list = client
+        .object()
+        .list(
+            &storage_client.bucket_name,
+            ListRequest {
+                prefix: Some("zumbor/encounters".to_owned()),
+                max_results: Some(1000),
+                ..Default::default()
+            },
+        )
+        .await?;
 
-    let mut objects = vec!();
+    let mut objects = vec![];
     list.for_each(|list| {
         let mut items = list.unwrap().items;
         objects.append(&mut items);
         future::ready(())
-    });
+    })
+    .await;
 
-    // let list_request = ListObjectsRequest {
-    //     bucket: "ziplod-assets".into(),
-    //     prefix: Some("zumbor/encounters".into()),
-    //     ..ListObjectsRequest::default()
-    // };
-
-    // let list = client
-    //     .list_objects(&list_request)
-    //     .await
-    //     .unwrap()
-    //     .items
-    //     .unwrap();
+    println!("{:?}", objects);
 
     let object = objects.choose(&mut rand::thread_rng()).unwrap();
 
     let byte_array = storage_client.download(&object.name).await?;
-
-    // let request = GetObjectRequest {
-    //     bucket: "ziplod-assets".into(),
-    //     object: object.name.clone(),
-    //     ..Default::default()
-    // };
-
-    // let range = Range::default();
-
-
-    // let byte_array = client
-    //     .download_object(&request, &range)
-    //     .await
-    //     .unwrap();
 
     let encounter: Result<Encounter, _> = serde_json::from_slice(&byte_array);
 
@@ -255,9 +236,9 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
     let encounter_json: String =
         serde_json::to_string(&encounter).map_err(|err| Error::from(err))?;
 
-    dbg!(&encounter);
-
-    storage_client.upload_json(&encounter_name, encounter_json).await?;
+    storage_client
+        .upload_json(&encounter_name, encounter_json)
+        .await?;
 
     // client.upload();
 

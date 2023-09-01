@@ -1547,6 +1547,7 @@ version = "0.1.0"
 dependencies = [
  "cloud-storage",
  "derive_builder",
+ "dotenv",
  "openssl",
  "rand",
  "serde",

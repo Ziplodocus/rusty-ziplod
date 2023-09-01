@@ -18,6 +18,7 @@ serde_json = "1.0.91"
 songbird = { version = "0.3.2", features = ["serenity-rustls"] }
 cloud-storage = "0.10"
 openssl = { version = "0.10", features = ["vendored"] }
+dotenv = "0.15.0"
 
 [dependencies.serenity]
 version = "0.11"

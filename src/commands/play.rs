@@ -1,8 +1,9 @@
-
-
 use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
-    model::prelude::{ChannelId, GuildChannel, Message},
+    model::{
+        guild,
+        prelude::{ChannelId, GuildChannel, GuildId, Message},
+    },
     prelude::Context,
 };
 
@@ -10,6 +11,7 @@ use crate::{
     errors::Error,
     storage::StorageClient,
     utilities::{message, random},
+    voice,
 };
 
 #[command]
@@ -31,6 +33,8 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
 
     let track_count = count_tracks(track_type.as_str()).await;
 
+    println!("Track Count: {track_count}");
+
     let mut track_num = args
         .single::<i32>()
         .unwrap_or_else(|_| random::random_range(0, track_count));
@@ -41,7 +45,10 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
 
     play_track(ctx, track_type, track_num, voice_channel)
         .await
-        .map_err(|o| format!("{o}"));
+        .map_err(|o| {
+            println!("{o}");
+            format!("{o}")
+        })?;
 
     return Ok(());
 }
@@ -52,10 +59,23 @@ async fn play_track<'a>(
     track_num: i32,
     voice_channel: GuildChannel,
 ) -> Result<(), Error> {
-    println!("Fecthing track...");
+    println!("Fetching track...");
+
     let track_stream = fetch_track(ctx, track_type, track_num).await?;
+
+    let guild_id = voice_channel
+        .guild(ctx)
+        .expect("The channel to be in a guild")
+        .id;
+
     println!("Playing track...");
-    play_audio_from_stream_in_channel(track_stream, voice_channel.id).await?;
+
+    play_audio_from_stream_in_channel(ctx, track_stream, voice_channel.id, guild_id)
+        .await
+        .map_err(|o| {
+            println!("{o}");
+            o
+        })?;
     Ok(())
 }
 
@@ -67,18 +87,22 @@ async fn count_tracks(_track_type: &str) -> i32 {
     return 1;
 }
 
-async fn fetch_track(ctx: &Context, _track_type: String, _track_num: i32) -> Result<Vec<u8>, Error> {
+async fn fetch_track(ctx: &Context, track_type: String, track_num: i32) -> Result<Vec<u8>, Error> {
     let data = ctx.data.read().await;
     let storage_client = data.get::<StorageClient>().unwrap();
-    storage_client
-        .download(&"tracks/{track_type}/{track_num}.mp3".into())
-        .await
+    let file_name = format!("tracks/{track_type}/{track_num}.mp3");
+    storage_client.download(&file_name).await
 }
 
 async fn play_audio_from_stream_in_channel(
-    _audio_stream: Vec<u8>,
+    ctx: &Context,
+    audio_stream: Vec<u8>,
     channel: ChannelId,
+    guild: GuildId,
 ) -> Result<(), Error> {
     println!("Playing audio in channel {channel}");
+
+    voice::play(ctx, channel, guild, audio_stream).await?;
+
     Ok(())
 }

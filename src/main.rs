@@ -2,13 +2,14 @@ mod commands;
 mod errors;
 mod storage;
 mod utilities;
+mod voice;
 
+use dotenv::dotenv;
 use std::env;
 
 use commands::{ping::PING_COMMAND, play::PLAY_COMMAND, zumbor::ZUMBOR_COMMAND};
 
 // Import the `Context` to handle commands.
-
 
 use serenity::framework::standard::macros::group;
 use serenity::framework::StandardFramework;
@@ -19,7 +20,7 @@ use serenity::{
     prelude::TypeMapKey,
 };
 
-use songbird::serenity::{SerenityInit};
+use songbird::serenity::SerenityInit;
 
 use storage::StorageClient;
 
@@ -34,13 +35,15 @@ impl EventHandler for Handler {}
 
 #[tokio::main]
 async fn main() {
-    let token = env::var("DISCORD_TOKEN").expect("token");
+    dotenv().ok();
+
+    let token = env::var("DISCORD_TOKEN").expect("Token");
     let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
     let bucket_name = env::var("CLOUD_BUCKET_NAME").expect("Bucket name");
-    let _prefix = env::var("COMMAND_PREFIX").expect("Prefix is defined");
+    let prefix = env::var("COMMAND_PREFIX").expect("Prefix");
 
     let framework = StandardFramework::new()
-        .configure(|c| c.prefix("!"))
+        .configure(|c| c.prefix(prefix))
         .group(&GENERAL_GROUP);
 
     let mut client = Client::builder(&token, intents)
