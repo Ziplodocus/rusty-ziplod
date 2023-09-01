@@ -4,10 +4,10 @@ use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
     model::prelude::{ChannelId, GuildChannel, Message},
     prelude::Context,
-    Error,
 };
 
 use crate::{
+    errors::Error,
     storage::StorageClient,
     utilities::{message, random},
 };
@@ -39,7 +39,9 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
         track_num = random::random_range(0, track_count);
     }
 
-    play_track(ctx, track_type, track_num, voice_channel).await?;
+    play_track(ctx, track_type, track_num, voice_channel)
+        .await
+        .map_err(|o| format!("{o}"));
 
     return Ok(());
 }
@@ -69,7 +71,7 @@ async fn fetch_track(ctx: &Context, track_type: String, track_num: i32) -> Resul
     let data = ctx.data.read().await;
     let storage_client = data.get::<StorageClient>().unwrap();
     storage_client
-        .download(format!("tracks/{track_type}/{track_num}.mp3"))
+        .download(&"tracks/{track_type}/{track_num}.mp3".into())
         .await
 }
 

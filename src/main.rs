@@ -1,7 +1,7 @@
 mod commands;
+mod errors;
 mod storage;
 mod utilities;
-mod errors;
 
 use std::env;
 
@@ -36,7 +36,8 @@ impl EventHandler for Handler {}
 async fn main() {
     let token = env::var("DISCORD_TOKEN").expect("token");
     let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
-    let bucket_name = env::var("CLOUD_BUCKET_NAME").expect("Bucekt name");
+    let bucket_name = env::var("CLOUD_BUCKET_NAME").expect("Bucket name");
+    let prefix = env::var("COMMAND_PREFIX").expect("Prefix is defined");
 
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("!"))

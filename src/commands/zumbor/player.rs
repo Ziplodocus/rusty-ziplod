@@ -11,10 +11,10 @@ use serenity::{
         ChannelId,
     },
     prelude::Context,
-    Error, FutureExt,
+    FutureExt,
 };
 
-use crate::StorageClient;
+use crate::{errors::Error, StorageClient};
 
 use super::effects::{Attribute, Effectable, LingeringEffect, LingeringEffectName};
 
@@ -119,7 +119,7 @@ pub struct PlayerDetails {
 }
 
 impl TryFrom<Vec<ActionRow>> for PlayerDetails {
-    type Error = serenity::Error;
+    type Error = Error;
     fn try_from(details_data: Vec<ActionRow>) -> Result<Self, Self::Error> {
         let mut name = None;
         let mut description = None;
@@ -127,13 +127,13 @@ impl TryFrom<Vec<ActionRow>> for PlayerDetails {
             let component = &row.components[0];
             let (key, value) = match component {
                 ActionRowComponent::InputText(pair) => (pair.custom_id.clone(), pair.value.clone()),
-                _ => return Err(Error::Other("Should be a text input")),
+                _ => return Err(Error::Plain("Should be a text input")),
             };
 
             let maybe_detail = key.try_into();
 
             if maybe_detail.is_err() {
-                return Err(Error::Other(
+                return Err(Error::Plain(
                     "Should be a InputID enum variant Name or Description",
                 ));
             }
@@ -191,7 +191,7 @@ impl Stats {
 }
 
 impl TryFrom<Vec<ActionRow>> for Stats {
-    type Error = serenity::Error;
+    type Error = Error;
     fn try_from(stats_data: Vec<ActionRow>) -> Result<Self, Self::Error> {
         let mut create_stats = Stats::builder();
         for row in stats_data {
@@ -202,7 +202,7 @@ impl TryFrom<Vec<ActionRow>> for Stats {
             };
             let value = value
                 .parse::<i16>()
-                .map_err(|_e| Error::Other("Failed to parse string as i16"))?;
+                .map_err(|_e| Error::Plain("Failed to parse string as i16"))?;
 
             create_stats.set(
                 name.try_into().expect("Id of input to be an attribute"),
@@ -233,10 +233,10 @@ impl StatsBuilder {
 
     pub fn build(self) -> Result<Stats, Error> {
         Ok(Stats {
-            charisma: self.charisma.ok_or_else(|| Error::Other("Oh no"))?,
-            strength: self.strength.ok_or_else(|| Error::Other("Oh no"))?,
-            wisdom: self.wisdom.ok_or_else(|| Error::Other("Oh no"))?,
-            agility: self.agility.ok_or_else(|| Error::Other("Oh no"))?,
+            charisma: self.charisma.ok_or_else(|| Error::Plain("Oh no"))?,
+            strength: self.strength.ok_or_else(|| Error::Plain("Oh no"))?,
+            wisdom: self.wisdom.ok_or_else(|| Error::Plain("Oh no"))?,
+            agility: self.agility.ok_or_else(|| Error::Plain("Oh no"))?,
         })
     }
 }
@@ -290,32 +290,32 @@ async fn fetch(ctx: &Context, user_tag: &String) -> Result<Player, Error> {
 
     let name: String = maybe_player_map
         .get("name")
-        .ok_or(Error::Other("name field not present in data"))?
+        .ok_or(Error::Plain("name field not present in data"))?
         .as_str()
         .expect("Name is a string")
         .to_string();
     let tag: String = maybe_player_map
         .get("user")
-        .ok_or(Error::Other("name field not present in data"))?
+        .ok_or(Error::Plain("name field not present in data"))?
         .as_str()
         .expect("User is a string")
         .to_string();
     let description: String = maybe_player_map
         .get("description")
-        .ok_or(Error::Other("description field not present in data"))?
+        .ok_or(Error::Plain("description field not present in data"))?
         .as_str()
         .expect("Description is a string")
         .to_string();
     let health: i16 = maybe_player_map
         .get("health")
-        .ok_or(Error::Other("health field not present in data"))?
+        .ok_or(Error::Plain("health field not present in data"))?
         .as_u64()
         .expect("Health is a number")
         .try_into()
         .unwrap();
     let score: u16 = maybe_player_map
         .get("score")
-        .ok_or(Error::Other("score field not present in data"))?
+        .ok_or(Error::Plain("score field not present in data"))?
         .as_u64()
         .expect("Score to be a number")
         .try_into()
@@ -345,7 +345,7 @@ async fn fetch(ctx: &Context, user_tag: &String) -> Result<Player, Error> {
                 .expect("Good number"),
         })
     } else {
-        Err(Error::Other("Stats should be an object / hash map"))
+        Err(Error::Plain("Stats should be an object / hash map"))
     }?;
 
     println!("Starting desrialise of effects..");
@@ -370,7 +370,7 @@ pub async fn delete(ctx: &Context, player: &Player) -> Result<(), Error> {
 
     let storage_client = data
         .get::<StorageClient>()
-        .ok_or(Error::Other("Storage client not accessible!"))?;
+        .ok_or(Error::Plain("Storage client not accessible!"))?;
 
     dbg!(&player.tag);
     storage_client
@@ -383,12 +383,12 @@ pub async fn save(ctx: &Context, player: &Player) -> Result<(), Error> {
 
     let storage_client = data
         .get::<StorageClient>()
-        .ok_or(Error::Other("Storage client not accessible!"))?;
+        .ok_or(Error::Plain("Storage client not accessible!"))?;
 
     let player_json: String = serde_json::to_string(player).map_err(|err| Error::from(err))?;
     let save_name = "zumbor/saves/".to_string() + &player.tag;
 
-    storage_client.upload_json(save_name, player_json).await
+    storage_client.upload_json(&save_name, player_json).await
 }
 
 pub async fn request(
@@ -466,10 +466,9 @@ mod send_modal {
             },
         },
         prelude::Context,
-        Error,
     };
 
-    use crate::commands::zumbor::effects::Attribute;
+    use crate::{commands::zumbor::effects::Attribute, errors::Error};
 
     use super::InputIds;
 
@@ -482,7 +481,7 @@ mod send_modal {
             .await
             .map_err(|err| {
                 println!("Stats modal fail... {}", err);
-                Error::Other("Modal failed")
+                Error::Plain("Modal failed")
             })
     }
 
@@ -521,7 +520,7 @@ mod send_modal {
             .await
             .map_err(|err| {
                 println!("{}", err);
-                Error::Other("Modal failed")
+                Error::Plain("Modal failed")
             })
     }
 
@@ -566,8 +565,9 @@ mod await_interaction {
             Message,
         },
         prelude::Context,
-        Error,
     };
+
+    use crate::errors::Error;
 
     pub(crate) async fn component(
         message: &Message,
@@ -580,7 +580,7 @@ mod await_interaction {
             .timeout(Duration::new(120, 0))
             .collect_limit(1)
             .await
-            .ok_or(Error::Other(
+            .ok_or(Error::Plain(
                 "Message Component interaction was not collected",
             ))
     }
@@ -595,7 +595,7 @@ mod await_interaction {
             .timeout(Duration::new(120, 0))
             .collect_limit(1)
             .await
-            .ok_or(Error::Other("Modal interaction was not collected"))
+            .ok_or(Error::Plain("Modal interaction was not collected"))
     }
 }
 
@@ -609,8 +609,9 @@ mod messages {
             ChannelId, Message,
         },
         prelude::Context,
-        Error,
     };
+
+    use crate::errors::Error;
 
     pub(crate) async fn character_details_request(
         channel: ChannelId,
@@ -630,7 +631,7 @@ mod messages {
             .await
             .map_err(|err| {
                 println!("{}", err);
-                Error::Other("Failed to send player request message")
+                Error::Plain("Failed to send player request message")
             })
     }
 
@@ -660,7 +661,7 @@ mod messages {
             .await
             .map_err(|_e| {
                 dbg!(_e);
-                Error::Other("Modal failed")
+                Error::Plain("Modal failed")
             })
     }
 
@@ -690,7 +691,7 @@ mod messages {
                     })
             })
             .await
-            .map_err(|_e| Error::Other("Modal failed"))
+            .map_err(|_e| Error::Plain("Modal failed"))
     }
 }
 

@@ -1,10 +1,20 @@
-
 #[derive(Debug)]
 pub enum Error {
     Plain(&'static str),
     Serenity(serenity::Error),
     Json(serde_json::Error),
-    Cloud(cloud_storage::Error)
+    Cloud(cloud_storage::Error),
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::Plain(str) => write!(f, "{}", str),
+            Error::Serenity(err) => write!(f, "{:?}", err),
+            Error::Json(err) => write!(f, "{:?}", err),
+            Error::Cloud(err) => write!(f, "{:?}", err),
+        }
+    }
 }
 
 impl From<serenity::Error> for Error {
