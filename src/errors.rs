@@ -4,6 +4,7 @@ pub enum Error {
     Serenity(serenity::Error),
     Json(serde_json::Error),
     Cloud(cloud_storage::Error),
+    Io(std::io::Error),
 }
 
 impl std::fmt::Display for Error {
@@ -13,6 +14,7 @@ impl std::fmt::Display for Error {
             Error::Serenity(err) => write!(f, "{:?}", err),
             Error::Json(err) => write!(f, "{:?}", err),
             Error::Cloud(err) => write!(f, "{:?}", err),
+            Error::Io(err) => write!(f, "{:?}", err),
         }
     }
 }
@@ -30,5 +32,10 @@ impl From<serde_json::Error> for Error {
 impl From<cloud_storage::Error> for Error {
     fn from(value: cloud_storage::Error) -> Self {
         Error::Cloud(value)
+    }
+}
+impl From<std::io::Error> for Error {
+    fn from(value: std::io::Error) -> Self {
+        Error::Io(value)
     }
 }

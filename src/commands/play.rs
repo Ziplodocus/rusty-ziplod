@@ -1,5 +1,6 @@
 use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
+    futures::Stream,
     model::{
         guild,
         prelude::{ChannelId, GuildChannel, GuildId, Message},
@@ -87,16 +88,20 @@ async fn count_tracks(_track_type: &str) -> i32 {
     return 1;
 }
 
-async fn fetch_track(ctx: &Context, track_type: String, track_num: i32) -> Result<Vec<u8>, Error> {
+async fn fetch_track(
+    ctx: &Context,
+    track_type: String,
+    track_num: i32,
+) -> Result<impl Stream<Item = Result<u8, cloud_storage::Error>> + Unpin, Error> {
     let data = ctx.data.read().await;
     let storage_client = data.get::<StorageClient>().unwrap();
     let file_name = format!("tracks/{track_type}/{track_num}.mp3");
-    storage_client.download(&file_name).await
+    storage_client.download_stream(&file_name).await
 }
 
 async fn play_audio_from_stream_in_channel(
     ctx: &Context,
-    audio_stream: Vec<u8>,
+    audio_stream: impl Stream<Item = Result<u8, cloud_storage::Error>> + Unpin,
     channel: ChannelId,
     guild: GuildId,
 ) -> Result<(), Error> {

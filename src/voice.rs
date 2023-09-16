@@ -1,10 +1,21 @@
+use std::{
+    io::Write,
+    process::{Command, Stdio},
+};
+
 use serenity::{
     framework::standard::{macros::command, CommandResult, CommonOptions},
-    futures::channel::oneshot::channel,
+    futures::{channel::oneshot::channel, Stream, StreamExt},
     model::prelude::{ChannelId, GuildId, Message},
     prelude::Context,
 };
-use songbird::input::{codec::OpusDecoderState, Codec, Container, Input, Reader};
+use songbird::{
+    input::{
+        children_to_reader, codec::OpusDecoderState, ChildContainer, Codec, Container, Input,
+        Reader,
+    },
+    tracks::Track,
+};
 
 use crate::errors::Error;
 
@@ -50,36 +61,51 @@ pub async fn play(
     ctx: &Context,
     channel_id: ChannelId,
     guild_id: GuildId,
-    file: Vec<u8>,
+    mut file_stream: impl Stream<Item = Result<u8, cloud_storage::Error>> + Unpin,
 ) -> Result<(), Error> {
     let manager = songbird::get(ctx)
         .await
         .expect("Songbird Voice client placed in at initialisation.")
         .clone();
 
-    println!("Got the voice manager.");
+    let ffmpeg_args = ["-f", "mp3", "-i", "pipe:", "-f", "pcm_f32le", "-"];
+
+    let mut ffmpeg = Command::new("ffmpeg")
+        .args(ffmpeg_args)
+        .stdin(Stdio::piped())
+        .stderr(Stdio::null())
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    let mut stdin = ffmpeg.stdin.take().unwrap();
+
+    while let Some(item) = file_stream.next().await {
+        let item = item?;
+        stdin.write_all(&[item])?;
+    }
+
+    drop(stdin);
 
     let source = Input::new(
         true,
-        Reader::from_memory(file),
-        Codec::Pcm,
+        Reader::from(ffmpeg),
+        Codec::FloatPcm,
         Container::Raw,
         None,
     );
-
-    println!("Got the source.");
 
     let maybe_handler = manager.join(guild_id, channel_id).await;
 
     let handler_lock = maybe_handler.0;
 
-    println!("Got the handler lock.");
-
     let mut handler = handler_lock.lock().await;
 
-    println!("Got the handler.");
+    let hand = handler.play_source(source);
 
-    handler.play_source(source);
+    match hand.play() {
+        Ok(_) => println!("Play success."),
+        Err(err) => println!("{err}"),
+    };
 
     println!("Played/Playing the source.");
 

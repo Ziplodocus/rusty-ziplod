@@ -47,7 +47,10 @@ impl StorageClient {
             })
     }
 
-    pub async fn download_stream(&self, path: &String) -> Result<impl Stream, Error> {
+    pub async fn download_stream(
+        &self,
+        path: &String,
+    ) -> Result<impl Stream<Item = Result<u8, cloud_storage::Error>> + Unpin, Error> {
         let object = self.client.object();
         let maybe_obj = object.download_streamed(&self.bucket_name, &path);
         println!("Streaming object.");
