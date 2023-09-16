@@ -1,6 +1,7 @@
 use crate::errors::Error;
 
-use cloud_storage::Client;
+use cloud_storage::{Client, ListRequest, Object};
+use rand::seq::SliceRandom;
 // use google_cloud_default::WithAuthExt;
 // use google_cloud_storage::{
 //     client::{Client, ClientConfig},
@@ -12,7 +13,10 @@ use cloud_storage::Client;
 //     },
 // };
 use serde::Deserialize;
-use serenity::{futures::Stream, prelude::TypeMapKey};
+use serenity::{
+    futures::{future, Stream, StreamExt},
+    prelude::TypeMapKey,
+};
 
 #[derive(Debug)]
 pub struct StorageClient {
@@ -87,6 +91,47 @@ impl StorageClient {
 
     pub async fn upload_json(&self, path: &str, content: String) -> Result<(), Error> {
         self.upload(content, path, "application/json").await
+    }
+
+    pub async fn download_random(&self, prefix: &str) -> Result<Vec<u8>, Error> {
+        let objects = self.fetch_objects(prefix).await?;
+
+        println!("{:?}", objects);
+
+        let object = objects.choose(&mut rand::thread_rng()).unwrap();
+
+        self.download(&object.name).await
+    }
+
+
+    pub async fn fetch_count(&self, prefix: &str) -> Result<usize, Error>{
+        let objs = self.fetch_objects(prefix).await?;
+        return Ok(objs.len());
+    }
+
+    async fn fetch_objects(&self, prefix: &str) -> Result<Vec<Object>, Error>{
+        let list = self
+            .client
+            .object()
+            .list(
+                &self.bucket_name,
+                ListRequest {
+                    prefix: Some(prefix.to_owned()),
+                    max_results: Some(1000),
+                    ..Default::default()
+                },
+            )
+            .await?;
+
+        let mut objects = vec![];
+        list.for_each(|list| {
+            let mut items = list.unwrap().items;
+            objects.append(&mut items);
+            future::ready(())
+        })
+        .await;
+
+        Ok(objects)
     }
 }
 

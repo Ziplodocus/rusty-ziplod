@@ -169,6 +169,7 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
 
     // V2 encounters should be serializable straight to a struct
     if let Ok(encounter) = encounter {
+        println!("Serialize success for {}", encounter.title);
         return Ok(encounter);
     } else {
         println!("Failed to deserialize {:?}", encounter);

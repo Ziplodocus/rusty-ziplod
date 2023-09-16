@@ -32,16 +32,29 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
         Err(_) => get_random_track_type(),
     };
 
-    let track_count = count_tracks(track_type.as_str()).await;
+    let track_count: u32 = match count_tracks(ctx, &track_type).await {
+        Ok(val) => val,
+        Err(e) => {
+            msg.reply(
+                ctx,
+                format!("The request can't be completed right now dufus."),
+            )
+            .await?;
+            println!("{e}");
+            return Ok(());
+        }
+    }
+    .try_into()
+    .unwrap_or(1);
 
-    println!("Track Count: {track_count}");
+    let track_num = args
+        .single::<u32>()
+        .unwrap_or_else(|_| random::random_range(0, track_count - 1));
 
-    let mut track_num = args
-        .single::<i32>()
-        .unwrap_or_else(|_| random::random_range(0, track_count));
-
-    if track_num > track_count {
-        track_num = random::random_range(0, track_count);
+    if track_num >= track_count {
+        msg.reply(ctx, format!("There is no {track_type} {track_num}"))
+            .await?;
+        return Ok(());
     }
 
     play_track(ctx, track_type, track_num, voice_channel)
@@ -51,27 +64,26 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
             format!("{o}")
         })?;
 
+    println!("Play command ended");
     return Ok(());
 }
 
 async fn play_track<'a>(
     ctx: &Context,
     track_type: String,
-    track_num: i32,
+    track_num: u32,
     voice_channel: GuildChannel,
 ) -> Result<(), Error> {
     println!("Fetching track...");
 
-    let track_stream = fetch_track(ctx, track_type, track_num).await?;
+    let track_stream = fetch_track(ctx, &track_type, track_num).await?;
 
     let guild_id = voice_channel
         .guild(ctx)
         .expect("The channel to be in a guild")
         .id;
 
-    println!("Playing track...");
-
-    play_audio_from_stream_in_channel(ctx, track_stream, voice_channel.id, guild_id)
+    play_audio_in_channel(ctx, track_stream, voice_channel.id, guild_id)
         .await
         .map_err(|o| {
             println!("{o}");
@@ -84,30 +96,30 @@ fn get_random_track_type() -> String {
     "meme".to_owned()
 }
 
-async fn count_tracks(_track_type: &str) -> i32 {
-    return 1;
-}
-
-async fn fetch_track(
-    ctx: &Context,
-    track_type: String,
-    track_num: i32,
-) -> Result<impl Stream<Item = Result<u8, cloud_storage::Error>> + Unpin, Error> {
+async fn count_tracks(ctx: &Context, track_type: &str) -> Result<usize, Error> {
     let data = ctx.data.read().await;
     let storage_client = data.get::<StorageClient>().unwrap();
-    let file_name = format!("tracks/{track_type}/{track_num}.mp3");
-    storage_client.download_stream(&file_name).await
+    let file_name = format!("tracks/{track_type}/");
+    storage_client.fetch_count(&file_name).await
 }
 
-async fn play_audio_from_stream_in_channel(
+async fn fetch_track(ctx: &Context, track_type: &str, track_num: u32) -> Result<Vec<u8>, Error> {
+    let data = ctx.data.read().await;
+    let storage_client = data.get::<StorageClient>().unwrap();
+    println!("Fetching {track_type} {track_num}");
+    let file_name = format!("tracks/{track_type}/{track_num}.mp3");
+
+    storage_client.download(&file_name).await
+}
+
+async fn play_audio_in_channel(
     ctx: &Context,
-    audio_stream: impl Stream<Item = Result<u8, cloud_storage::Error>> + Unpin,
+    audio_stream: Vec<u8>,
     channel: ChannelId,
     guild: GuildId,
 ) -> Result<(), Error> {
-    println!("Playing audio in channel {channel}");
-
-    voice::play(ctx, channel, guild, audio_stream).await?;
+    println!("Streaming audio to channel {channel}...");
+    voice::play(ctx, channel, guild, audio_stream.as_slice()).await?;
 
     Ok(())
 }

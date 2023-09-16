@@ -1,3 +1,7 @@
+
+use serenity::framework::standard::CommandError;
+
+
 #[derive(Debug)]
 pub enum Error {
     Plain(&'static str),
