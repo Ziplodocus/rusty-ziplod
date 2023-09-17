@@ -40,7 +40,7 @@ impl StorageClient {
         }
     }
 
-    pub async fn remove(&self, path: &String) -> Result<(), Error> {
+    pub async fn remove(&self, path: &str) -> Result<(), Error> {
         self.client
             .object()
             .delete(&self.bucket_name, path)
@@ -53,7 +53,7 @@ impl StorageClient {
 
     pub async fn download_stream(
         &self,
-        path: &String,
+        path: &str,
     ) -> Result<impl Stream<Item = Result<u8, cloud_storage::Error>> + Unpin, Error> {
         let object = self.client.object();
         let maybe_obj = object.download_streamed(&self.bucket_name, &path);
@@ -61,22 +61,24 @@ impl StorageClient {
         maybe_obj.await.map_err(|o| o.into())
     }
 
-    pub async fn download(&self, path: &String) -> Result<Vec<u8>, Error> {
+    pub async fn download(&self, path: &str) -> Result<Vec<u8>, Error> {
         let object = self.client.object();
-        let maybe_obj = object.download(&self.bucket_name, &path);
+        let maybe_obj = object.download(&self.bucket_name, path).await;
         println!("Downloaded object.");
-        maybe_obj.await.map_err(|o| o.into())
+        let obj = object.read(&self.bucket_name, path).await?;
+        dbg!(obj.metadata);
+        maybe_obj.map_err(|o| o.into())
     }
 
-    pub async fn remove_json(&self, path: String) -> Result<(), Error> {
-        self.remove(&(path + ".json")).await
+    pub async fn remove_json(&self, path: &str) -> Result<(), Error> {
+        self.remove(&(path.to_owned() + ".json")).await
     }
 
     pub async fn download_json<T: for<'a> Deserialize<'a>>(
         &self,
-        path: String,
+        path: &str,
     ) -> Result<T, Error> {
-        let bytes = self.download(&(path + ".json")).await?;
+        let bytes = self.download(&(path.to_owned() + ".json")).await?;
 
         serde_json::from_slice::<T>(&bytes).map_err(|err| Error::Json(err))
     }

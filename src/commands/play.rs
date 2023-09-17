@@ -32,7 +32,7 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
         Err(_) => get_random_track_type(),
     };
 
-    let track_count: u32 = match count_tracks(ctx, &track_type).await {
+    let mut track_count: u32 = match count_tracks(ctx, &track_type).await {
         Ok(val) => val,
         Err(e) => {
             msg.reply(
@@ -46,6 +46,10 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
     }
     .try_into()
     .unwrap_or(1);
+
+    if track_count == 0 {
+        track_count = 1
+    }
 
     let track_num = args
         .single::<u32>()
@@ -120,7 +124,7 @@ async fn play_audio_in_channel(
     guild: GuildId,
 ) -> Result<(), Error> {
     println!("Streaming audio to channel {channel}...");
-    voice::play(ctx, channel, guild, audio_stream.as_slice()).await?;
+    voice::play(ctx, channel, guild, audio_stream).await?;
 
     Ok(())
 }

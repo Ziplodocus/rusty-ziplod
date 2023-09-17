@@ -3,6 +3,7 @@ mod errors;
 mod storage;
 mod utilities;
 mod voice;
+mod audio_conversion;
 
 use dotenv::dotenv;
 use std::env;
@@ -42,6 +43,8 @@ async fn main() {
     let bucket_name = env::var("CLOUD_BUCKET_NAME").expect("Bucket name");
     let prefix = env::var("COMMAND_PREFIX").expect("Prefix");
 
+    println!("Env variables determined.");
+
     let framework = StandardFramework::new()
         .configure(|c| c.prefix(prefix))
         .group(&GENERAL_GROUP);
@@ -52,6 +55,8 @@ async fn main() {
         .register_songbird()
         .await
         .expect("Couldn't create new client!");
+
+    println!("Client creatd!");
 
     {
         // Make the storage client available to the context
@@ -80,8 +85,4 @@ pub struct ZumborInstances {
 
 impl TypeMapKey for ZumborInstances {
     type Value = ZumborInstances;
-}
-
-fn test(a: impl SerenityInit) -> impl SerenityInit {
-    return a.register_songbird();
 }

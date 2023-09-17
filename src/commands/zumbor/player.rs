@@ -373,7 +373,7 @@ pub async fn delete(ctx: &Context, player: &Player) -> Result<(), Error> {
 
     dbg!(&player.tag);
     storage_client
-        .remove_json("zumbor/saves/".to_string() + &player.tag)
+        .remove_json(("zumbor/saves/".to_string() + &player.tag).as_str())
         .await
 }
 
