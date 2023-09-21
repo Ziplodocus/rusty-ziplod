@@ -1,5 +1,11 @@
+use std::{
+    io::{BufReader, Read},
+    sync::Arc,
+};
+
 use crate::errors::Error;
 
+use bytes::Bytes;
 use cloud_storage::{Client, ListRequest, Object};
 use rand::seq::SliceRandom;
 // use google_cloud_default::WithAuthExt;
@@ -14,7 +20,7 @@ use rand::seq::SliceRandom;
 // };
 use serde::Deserialize;
 use serenity::{
-    futures::{future, Stream, StreamExt},
+    futures::{future, Stream, StreamExt, TryStream},
     prelude::TypeMapKey,
 };
 
@@ -47,7 +53,7 @@ impl StorageClient {
             .await
             .map_err(|err| {
                 println!("{}", err);
-                Error::Plain("Failed to delete the player")
+                Error::Plain("Failed to remove file")
             })
     }
 
@@ -74,10 +80,7 @@ impl StorageClient {
         self.remove(&(path.to_owned() + ".json")).await
     }
 
-    pub async fn download_json<T: for<'a> Deserialize<'a>>(
-        &self,
-        path: &str,
-    ) -> Result<T, Error> {
+    pub async fn download_json<T: for<'a> Deserialize<'a>>(&self, path: &str) -> Result<T, Error> {
         let bytes = self.download(&(path.to_owned() + ".json")).await?;
 
         serde_json::from_slice::<T>(&bytes).map_err(|err| Error::Json(err))
@@ -87,6 +90,22 @@ impl StorageClient {
         self.client
             .object()
             .create(&self.bucket_name, content.into(), path, mime_type)
+            .await?;
+        Ok(())
+    }
+
+    /**
+     *
+     */
+    pub async fn upload_stream(
+        &self,
+        stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Send + Sync + 'static,
+        path: &str,
+        mime_type: &str,
+    ) -> Result<(), Error> {
+        self.client
+            .object()
+            .create_streamed(&self.bucket_name, stream, 10, path, mime_type)
             .await?;
         Ok(())
     }
@@ -105,13 +124,12 @@ impl StorageClient {
         self.download(&object.name).await
     }
 
-
-    pub async fn fetch_count(&self, prefix: &str) -> Result<usize, Error>{
+    pub async fn fetch_count(&self, prefix: &str) -> Result<usize, Error> {
         let objs = self.fetch_objects(prefix).await?;
         return Ok(objs.len());
     }
 
-    async fn fetch_objects(&self, prefix: &str) -> Result<Vec<Object>, Error>{
+    async fn fetch_objects(&self, prefix: &str) -> Result<Vec<Object>, Error> {
         let list = self
             .client
             .object()

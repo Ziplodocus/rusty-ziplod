@@ -101,7 +101,7 @@ fn get_random_track_type() -> String {
     "meme".to_owned()
 }
 
-async fn count_tracks(ctx: &Context, track_type: &str) -> Result<usize, Error> {
+pub async fn count_tracks(ctx: &Context, track_type: &str) -> Result<usize, Error> {
     let data = ctx.data.read().await;
     let storage_client = data.get::<StorageClient>().unwrap();
     let file_name = format!("tracks/{track_type}/");
