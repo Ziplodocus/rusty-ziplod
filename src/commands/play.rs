@@ -25,7 +25,7 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
         return Ok(());
     }
 
-    let voice_channel = maybe_voice_channel.unwrap();
+    let voice_channel = maybe_voice_channel?;
 
     let track_type: String = match args.single::<String>() {
         Ok(arg) => arg.into(),
@@ -103,14 +103,18 @@ fn get_random_track_type() -> String {
 
 pub async fn count_tracks(ctx: &Context, track_type: &str) -> Result<usize, Error> {
     let data = ctx.data.read().await;
-    let storage_client = data.get::<StorageClient>().unwrap();
+    let storage_client = data
+        .get::<StorageClient>()
+        .expect("Storage client is available in the context");
     let file_name = format!("tracks/{track_type}/");
     storage_client.fetch_count(&file_name).await
 }
 
 async fn fetch_track(ctx: &Context, track_type: &str, track_num: u32) -> Result<Vec<u8>, Error> {
     let data = ctx.data.read().await;
-    let storage_client = data.get::<StorageClient>().unwrap();
+    let storage_client = data
+        .get::<StorageClient>()
+        .expect("Storage client is available in the context");
     println!("Fetching {track_type} {track_num}");
     let file_name = format!("tracks/{track_type}/{track_num}.mp3");
 

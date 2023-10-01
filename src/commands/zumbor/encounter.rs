@@ -135,7 +135,9 @@ pub enum EncounterResultName {
 pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
     let data = ctx.data.read().await;
 
-    let storage_client = data.get::<StorageClient>().unwrap();
+    let storage_client = data
+        .get::<StorageClient>()
+        .expect("Storage client is available in context");
 
     let client = &storage_client.client;
 

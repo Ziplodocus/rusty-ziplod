@@ -1,14 +1,19 @@
 use std::{
     io::{BufRead, BufReader, BufWriter, Write},
     process::{Child, Command, Stdio},
-    thread::{self, JoinHandle}, rc::Rc, sync::Arc,
+    rc::Rc,
+    sync::Arc,
+    thread::{self, JoinHandle},
 };
 
 use serde_json::{Map, Value};
 
 use crate::errors::Error;
 
-pub fn convert(stream: Arc<[u8]>, format: &str) -> Result<(Child, AudioMeta, JoinHandle<Result<(), Error>>), Error> {
+pub fn convert(
+    stream: Arc<[u8]>,
+    format: &str,
+) -> Result<(Child, AudioMeta, JoinHandle<Result<(), Error>>), Error> {
     let meta = get_meta(stream.clone())?;
 
     println!("Converting the audio from mp3...");
@@ -31,7 +36,7 @@ pub fn convert(stream: Arc<[u8]>, format: &str) -> Result<(Child, AudioMeta, Joi
         .stdout(Stdio::piped())
         .spawn()?;
 
-    let mut stdin = ffmpeg.stdin.take().unwrap();
+    let mut stdin = ffmpeg.stdin.take().expect("ffmpeg command to have a stdin");
 
     let write_handle = thread::spawn(move || -> Result<(), Error> {
         stdin.write_all(&stream)?;
@@ -66,8 +71,11 @@ fn get_meta(stream: Arc<[u8]>) -> Result<AudioMeta, Error> {
         .stdout(Stdio::piped())
         .spawn()?;
 
-    let mut stdin = cmd.stdin.take().unwrap();
-    let stdout = cmd.stdout.take().unwrap();
+    let mut stdin = cmd.stdin.take().expect("ffprobe command to accept a stdin");
+    let stdout = cmd
+        .stdout
+        .take()
+        .expect("ffprobe command to accept a stdout");
     let reader = BufReader::new(stdout);
 
     let read_thread = thread::spawn(|| -> Result<Map<String, Value>, Error> {
@@ -83,68 +91,7 @@ fn get_meta(stream: Arc<[u8]>) -> Result<AudioMeta, Error> {
 
     let map = read_thread.join().expect("This to work :(")?;
 
-    let format = map
-        .get("format")
-        .expect("Format is returned")
-        .as_object()
-        .unwrap();
-
-    let main_stream = map
-        .get("streams")
-        .expect("There is a stream")
-        .as_array()
-        .unwrap()
-        .get(0)
-        .expect("Uh oh there was no stream");
-
-    let sample_rate: u32 = main_stream
-        .get("sample_rate")
-        .expect("There is a sample rate")
-        .as_str()
-        .unwrap()
-        .parse()
-        .expect("Is convertible");
-
-    let channels: u64 = main_stream
-        .get("channels")
-        .expect("Channels is determined")
-        .as_u64()
-        .unwrap();
-
-    let channel_layout = main_stream
-        .get("channel_layout")
-        .expect("Stereo/mono is determined")
-        .as_str()
-        .expect("Is convertible");
-
-    let is_stereo = channel_layout == "stereo";
-
-    let format_name = format
-        .get("format_name")
-        .expect("Format is determined in audio file")
-        .as_str()
-        .expect("Is convertible");
-
-    let bit_rate: u32 = format
-        .get("bit_rate")
-        .expect("Bitrate is determined in audio file")
-        .as_str()
-        .unwrap()
-        .parse()
-        .expect("Is convertible");
-
-    let bit_rate = bit_rate / 1000;
-    let sample_rate = sample_rate / 1000;
-
-    println!("Determined the audio meta");
-
-    Ok(AudioMeta {
-        format_name: format_name.into(),
-        bit_rate: (bit_rate.to_string() + "k").into(),
-        sample_rate: (sample_rate.to_string() + "k").into(),
-        channels: channels.into(),
-        is_stereo,
-    })
+    AudioMeta::try_from(map)
 }
 
 #[derive(Debug, Clone)]
@@ -154,4 +101,76 @@ pub struct AudioMeta {
     sample_rate: Box<str>,
     channels: u64,
     pub is_stereo: bool,
+}
+
+impl TryFrom<Map<String, Value>> for AudioMeta {
+    type Error = Error;
+
+    fn try_from(map: Map<String, Value>) -> Result<AudioMeta, Error> {
+        /*
+         * @todo If the command fails to determine information about the audio file, currently the thread will panic becasue fo teh expects
+         */
+        let format = map
+            .get("format")
+            .expect("Format is returned")
+            .as_object()
+            .expect("Format is in the form of a map");
+
+        let main_stream = map
+            .get("streams")
+            .expect("There is a stream")
+            .as_array()
+            .expect("Streams to be in the form of an array")
+            .get(0)
+            .expect("Uh oh there was no stream");
+
+        let sample_rate: u64 = main_stream
+            .get("sample_rate")
+            .expect("There is a sample rate")
+            .as_str()
+            .expect("Can be deserialized as string")
+            .parse()
+            .expect("Is convertible");
+
+        let channels: u64 = main_stream
+            .get("channels")
+            .expect("Channels is determined")
+            .as_u64()
+            .expect("Chanels is in form of a number");
+
+        let channel_layout = main_stream
+            .get("channel_layout")
+            .expect("Stereo/mono is determined")
+            .as_str()
+            .expect("Is convertible");
+
+        let is_stereo = channel_layout == "stereo";
+
+        let format_name = format
+            .get("format_name")
+            .expect("Format is determined in audio file")
+            .as_str()
+            .expect("Is convertible");
+
+        let bit_rate: u64 = format
+            .get("bit_rate")
+            .expect("Bitrate is determined in audio file")
+            .as_str()
+            .expect("Bitrate Can be deserialized as string")
+            .parse()
+            .expect("Is convertible");
+
+        let bit_rate = bit_rate / 1000;
+        let sample_rate = sample_rate / 1000;
+
+        println!("Determined the audio meta");
+
+        Ok(AudioMeta {
+            format_name: format_name.into(),
+            bit_rate: (bit_rate.to_string() + "k").into(),
+            sample_rate: (sample_rate.to_string() + "k").into(),
+            channels: channels.into(),
+            is_stereo,
+        })
+    }
 }

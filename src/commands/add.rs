@@ -2,18 +2,15 @@ use bytes::Bytes;
 
 use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
+    futures::{Stream, StreamExt},
     model::prelude::{ChannelId, GuildChannel, GuildId, Message},
-    prelude::Context, futures::{Stream, StreamExt},
-};
-
-use reqwest::{
-
+    prelude::Context,
 };
 
 use crate::{
     commands::play::count_tracks,
     errors::Error,
-    storage::{StorageClient, self},
+    storage::{self, StorageClient},
     utilities::{message, random},
 };
 
@@ -21,24 +18,31 @@ use crate::{
 pub async fn add(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     println!("The add command has been triggered");
 
-    let track_type: String = args.single::<String>()?;
-
-    let track_count = count_tracks(ctx, &track_type)
-        .await?
-        .try_into()
-        .unwrap_or(0);
+    let track_type: Box<str> = match args.single::<String>() {
+        Ok(val) => val.into(),
+        Err(e) => {
+            println!("Failed to determine track type because: {e}");
+            msg.reply(
+                ctx,
+                "You must pass the track type as the first parameter numpty.",
+            )
+            .await?;
+            return Ok(());
+        }
+    };
 
     let stream = fetch_attachment_stream(msg).await?;
 
-
     let data = ctx.data.read().await;
-    let storage_client = data.get::<StorageClient>().unwrap();
+    let storage_client = data
+        .get::<StorageClient>()
+        .expect("Storage client is available");
     let num = count_tracks(ctx, &track_type).await.map_err(|o| {
         println!("{:?}", o);
-        Error::Plain("Error counting tracks")
+        o
     })?;
 
-    let path = format!("/tracks/{track_type}/{num}");
+    let path: Box<str> = format!("/tracks/{track_type}/{num}").into();
 
     storage_client.upload_stream(stream, &path, "mp3").await?;
 
@@ -46,12 +50,12 @@ pub async fn add(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult 
     return Ok(());
 }
 
-
-async fn fetch_attachment_stream(msg: &Message) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>, Error>
-{
+async fn fetch_attachment_stream(
+    msg: &Message,
+) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>, Error> {
     let file = match msg.attachments.get(0) {
         Some(attach) => attach,
-        None => return Err(Error::Plain("That message has no attachments dummy."))
+        None => return Err(Error::Plain("That message has no attachments dummy.")),
     };
 
     let _valid = match &file.content_type {
@@ -62,8 +66,9 @@ async fn fetch_attachment_stream(msg: &Message) -> Result<impl Stream<Item = Res
     let stream = reqwest::Client::new()
         .get(&file.url)
         .send()
-        .await.expect("oh well")
+        .await
+        .expect("oh well")
         .bytes_stream();
 
-        Ok(stream)
+    Ok(stream)
 }

@@ -3,7 +3,9 @@ use serenity::{
     prelude::Context,
 };
 
-pub async fn resolve_voice_channel(ctx: &Context, msg: &Message) -> Result<GuildChannel, String> {
+use crate::errors::Error;
+
+pub async fn resolve_voice_channel(ctx: &Context, msg: &Message) -> Result<GuildChannel, Error> {
     let user = msg.mentions.get(0).unwrap_or(&msg.author);
     let guild = msg
         .guild(ctx)
@@ -11,10 +13,9 @@ pub async fn resolve_voice_channel(ctx: &Context, msg: &Message) -> Result<Guild
 
     let maybe_member = guild.member(ctx, user).await;
 
-    if maybe_member.is_err() {
-        return Err("You can't mention someone not in the guild you fool.".into());
-    }
-    let member = maybe_member.unwrap();
+    let member = maybe_member.map_err(|_| {
+        return Error::Plain("You can't mention someone not in the guild you fool.".into());
+    })?;
 
     return fetch_voice_channel(ctx, &guild, &member).await;
 }
@@ -23,7 +24,7 @@ pub async fn fetch_voice_channel(
     ctx: &Context,
     guild: &Guild,
     member: &Member,
-) -> Result<GuildChannel, String> {
+) -> Result<GuildChannel, Error> {
     let channels = guild.channels(ctx).await.expect("Guild is available");
 
     for (_, channel) in channels {
@@ -44,5 +45,5 @@ pub async fn fetch_voice_channel(
         }
     }
 
-    return Err("No voice channel found for that user".to_owned());
+    return Err(Error::Plain("No voice channel found for that user"));
 }

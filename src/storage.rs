@@ -119,7 +119,9 @@ impl StorageClient {
 
         println!("{:?}", objects);
 
-        let object = objects.choose(&mut rand::thread_rng()).unwrap();
+        let object = objects
+            .choose(&mut rand::thread_rng())
+            .expect("The random number generated not to exceed the number of objects");
 
         self.download(&object.name).await
     }
@@ -143,15 +145,12 @@ impl StorageClient {
             )
             .await?;
 
-        let mut objects = vec![];
-        list.for_each(|list| {
-            let mut items = list.unwrap().items;
-            objects.append(&mut items);
-            future::ready(())
-        })
-        .await;
+        let items = match Box::pin(list).next().await {
+            Some(list) => list?.items,
+            None => Vec::new(),
+        };
 
-        Ok(objects)
+        Ok(items)
     }
 }
 

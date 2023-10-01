@@ -1,14 +1,14 @@
+mod audio_conversion;
 mod commands;
 mod errors;
 mod storage;
 mod utilities;
 mod voice;
-mod audio_conversion;
 
 use dotenv::dotenv;
 use std::env;
 
-use commands::{ping::PING_COMMAND, play::PLAY_COMMAND, zumbor::ZUMBOR_COMMAND};
+use commands::{add::ADD_COMMAND, ping::PING_COMMAND, play::PLAY_COMMAND, zumbor::ZUMBOR_COMMAND};
 
 // Import the `Context` to handle commands.
 
@@ -26,7 +26,7 @@ use songbird::serenity::SerenityInit;
 use storage::StorageClient;
 
 #[group]
-#[commands(ping, zumbor, play)]
+#[commands(ping, zumbor, play, add)]
 struct General;
 
 struct Handler;
