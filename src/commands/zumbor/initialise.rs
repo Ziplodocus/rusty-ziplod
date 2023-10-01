@@ -1,7 +1,3 @@
-
-
-
-
 use serenity::{
     builder::CreateEmbed,
     http::Http,
@@ -13,11 +9,11 @@ use serenity::{
     utils::Colour,
 };
 
-use crate::ZumborInstances;
 use crate::errors::Error;
+use crate::ZumborInstances;
 
 use super::{
-    effects::{Effectable},
+    effects::Effectable,
     encounter::{self, Encounter},
     player::{self, RollResult},
     ui::{ContinueOption, UI},
@@ -35,7 +31,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             "You already have a running instance of Zumbor you fool!".to_string(),
         )
         .await
-        .unwrap();
+        .expect("To send a message");
         return Err(err);
     };
 
@@ -225,10 +221,12 @@ async fn add_player_to_instance(ctx: &Context, user_id: UserId) -> Result<bool, 
     let mut data = ctx.data.write().await;
     let zumbor = data.get_mut::<ZumborInstances>().unwrap();
     if zumbor.instances.contains(&user_id) {
-        Err(Error::Plain("The user currently has an active Zumbor instance"))
+        Err(Error::Plain(
+            "The user currently has an active Zumbor instance",
+        ))
     } else {
         zumbor.instances.push(user_id);
-        println!("{:?}",zumbor.instances);
+        println!("{:?}", zumbor.instances);
         Ok(true)
     }
 }
@@ -237,8 +235,15 @@ async fn remove_player_from_instance(ctx: &Context, user_id: UserId) {
     let mut data = ctx.data.write().await;
     let zumbor = data.get_mut::<ZumborInstances>().unwrap();
     // Ignore if no such element is found
-    println!("{:?}",zumbor.instances);
-    if zumbor.instances.iter().filter(|x| **x == user_id).collect::<Vec<&UserId>>().len() == 1 {
+    println!("{:?}", zumbor.instances);
+    if zumbor
+        .instances
+        .iter()
+        .filter(|x| **x == user_id)
+        .collect::<Vec<&UserId>>()
+        .len()
+        == 1
+    {
         zumbor.instances.remove(0);
     }
 }

@@ -131,7 +131,7 @@ impl StorageClient {
         return Ok(objs.len());
     }
 
-    async fn fetch_objects(&self, prefix: &str) -> Result<Vec<Object>, Error> {
+    pub async fn fetch_objects(&self, prefix: &str) -> Result<Vec<Object>, Error> {
         let list = self
             .client
             .object()

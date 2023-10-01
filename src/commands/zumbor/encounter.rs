@@ -65,6 +65,67 @@ impl From<&Encounter> for CreateComponents {
     }
 }
 
+impl TryFrom<Value> for Encounter {
+    type Error = Error;
+
+    fn try_from(enc: Value) -> Result<Self, Self::Error> {
+        let mut options: HashMap<String, EncounterOption> = HashMap::new();
+
+        if let Value::Object(options_map) = enc["options"].clone() {
+            for (key, value) in options_map {
+                let success_result = if let Value::Object(res) = value["Success"].clone() {
+                    EncounterResult {
+                        kind: EncounterResultName::Success(
+                            res["type"].as_str().unwrap().to_string(),
+                        ),
+                        title: res["title"].as_str().unwrap().into(),
+                        text: res["text"].as_str().unwrap().into(),
+                        base_effect: json_base_effect_to_struct(res.clone()),
+                        lingering_effect: json_lingering_effect_to_struct(res),
+                    }
+                } else {
+                    panic!("Success result should be an object");
+                };
+
+                let fail_result = if let Value::Object(res) = value["Fail"].clone() {
+                    EncounterResult {
+                        kind: EncounterResultName::Fail(res["type"].as_str().unwrap().to_string()),
+                        title: res["title"].as_str().unwrap().into(),
+                        text: res["text"].as_str().unwrap().into(),
+                        base_effect: json_base_effect_to_struct(res.clone()),
+                        lingering_effect: json_lingering_effect_to_struct(res),
+                    }
+                } else {
+                    panic!("Success result should be an object");
+                };
+
+                let option = EncounterOption {
+                    threshold: value["threshold"].as_u64().unwrap().try_into().unwrap(),
+                    stat: map_attribute_name(value["stat"].as_str().unwrap()).unwrap(),
+                    success: success_result,
+                    fail: fail_result,
+                };
+
+                options.insert(key, option);
+            }
+        }
+
+        let color = match &enc["color"] {
+            Value::String(val) => hex_to_colour(val.as_ref()),
+            _ => hex_to_colour("#000000"),
+        };
+
+        let encounter = Encounter {
+            title: enc["title"].to_string(),
+            text: enc["text"].to_string(),
+            color: Some(color),
+            options,
+        };
+
+        Ok(encounter)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EncounterOption {
     pub threshold: u8,
@@ -139,31 +200,13 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
         .get::<StorageClient>()
         .expect("Storage client is available in context");
 
-    let client = &storage_client.client;
-
-    let list = client
-        .object()
-        .list(
-            &storage_client.bucket_name,
-            ListRequest {
-                prefix: Some("zumbor/encounters".to_owned()),
-                max_results: Some(1000),
-                ..Default::default()
-            },
-        )
-        .await?;
-
-    let mut objects = vec![];
-    list.for_each(|list| {
-        let mut items = list.unwrap().items;
-        objects.append(&mut items);
-        future::ready(())
-    })
-    .await;
+    let objects = storage_client.fetch_objects("zumbor/encounters").await?;
 
     println!("{:?}", objects);
 
-    let object = objects.choose(&mut rand::thread_rng()).unwrap();
+    let object = objects
+        .choose(&mut rand::thread_rng())
+        .expect("Random number is limited to the number of objects");
 
     let byte_array = storage_client.download(&object.name).await?;
 
@@ -180,56 +223,7 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
     // Handles previous versions of the Encounter object
     let enc: Value = serde_json::from_slice(&byte_array).unwrap();
 
-    let mut options: HashMap<String, EncounterOption> = HashMap::new();
-
-    if let Value::Object(options_map) = enc["options"].clone() {
-        for (key, value) in options_map {
-            let success_result = if let Value::Object(res) = value["Success"].clone() {
-                EncounterResult {
-                    kind: EncounterResultName::Success(res["type"].as_str().unwrap().to_string()),
-                    title: res["title"].as_str().unwrap().into(),
-                    text: res["text"].as_str().unwrap().into(),
-                    base_effect: json_base_effect_to_struct(res.clone()),
-                    lingering_effect: json_lingering_effect_to_struct(res),
-                }
-            } else {
-                panic!("Success result should be an object");
-            };
-
-            let fail_result = if let Value::Object(res) = value["Fail"].clone() {
-                EncounterResult {
-                    kind: EncounterResultName::Fail(res["type"].as_str().unwrap().to_string()),
-                    title: res["title"].as_str().unwrap().into(),
-                    text: res["text"].as_str().unwrap().into(),
-                    base_effect: json_base_effect_to_struct(res.clone()),
-                    lingering_effect: json_lingering_effect_to_struct(res),
-                }
-            } else {
-                panic!("Success result should be an object");
-            };
-
-            let option = EncounterOption {
-                threshold: value["threshold"].as_u64().unwrap().try_into().unwrap(),
-                stat: map_attribute_name(value["stat"].as_str().unwrap()).unwrap(),
-                success: success_result,
-                fail: fail_result,
-            };
-
-            options.insert(key, option);
-        }
-    }
-
-    let color = match &enc["color"] {
-        Value::String(val) => hex_to_colour(val.as_ref()),
-        _ => hex_to_colour("#000000"),
-    };
-
-    let encounter = Encounter {
-        title: enc["title"].to_string(),
-        text: enc["text"].to_string(),
-        color: Some(color),
-        options,
-    };
+    let encounter = Encounter::try_from(enc)?;
 
     let encounter_name = object
         .name
@@ -242,27 +236,6 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
     storage_client
         .upload_json(&encounter_name, encounter_json)
         .await?;
-
-    // client.upload();
-
-    // let upload_request = UploadObjectRequest {
-    //     bucket: "ziplod-assets".into(),
-    //     ..Default::default()
-    // };
-
-    // let upload_media = Media::new(encounter_name);
-
-    // client
-    //     .upload_object(
-    //         &upload_request,
-    //         encounter_json,
-    //         &UploadType::Simple(upload_media),
-    //     )
-    //     .await
-    //     .map_err(|err| {
-    //         dbg!(err);
-    //         Error::Other("Failed to upload object")
-    //     })?;
 
     Ok(encounter)
 }
