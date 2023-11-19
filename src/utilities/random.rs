@@ -1,4 +1,4 @@
-use rand::{Rng, distributions::uniform::{SampleUniform, SampleRange}};
+use rand::{Rng, distributions::uniform::{SampleUniform}};
 
 pub fn random_range<T>(min: T, max: T) -> T where
     T: SampleUniform + PartialOrd {

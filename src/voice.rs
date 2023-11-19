@@ -1,28 +1,16 @@
-use std::{
-    collections::HashMap,
-    io::{stdin, BufRead, BufReader, BufWriter, Write},
-    os::windows::prelude::AsHandle,
-    process::{Command, Stdio},
-    sync::Arc,
-    thread, rc::Rc,
-};
 
-use serde_json::{Map, Value};
+
+
 use serenity::{
-    framework::standard::{macros::command, CommandResult, CommonOptions},
-    futures::{channel::oneshot::channel, Stream, StreamExt},
-    model::prelude::{ChannelId, GuildId, Message},
+    model::prelude::{ChannelId, GuildId},
     prelude::Context,
 };
 use songbird::{
     input::{
-        children_to_reader, codec::OpusDecoderState, ChildContainer, Codec, Container, Input,
-        Reader,
+        children_to_reader, Codec, Container, Input,
     },
-    tracks::Track,
-    Call,
 };
-use tokio::sync::{Mutex, MutexGuard};
+
 
 use crate::{errors::Error, audio_conversion};
 
@@ -75,7 +63,7 @@ pub async fn play(
         .expect("Songbird Voice client placed in at initialisation.")
         .clone();
 
-    let (ffmpeg, meta, writer_handle) = audio_conversion::convert(file_stream.into(), "f32le")?;
+    let (ffmpeg, meta, _writer_handle) = audio_conversion::convert(file_stream.into(), "f32le")?;
 
     let source = Input::new(
         meta.is_stereo,

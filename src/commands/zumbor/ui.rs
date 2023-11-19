@@ -28,8 +28,10 @@ impl UI<'_> {
         UIBuilder::default()
     }
 
-    pub async fn say(&self, message_content: &str) -> () {
-        self.channel.say(self.context, message_content).await;
+    pub async fn say(&self, message_content: &str) {
+        if let Err(t) = self.channel.say(self.context, message_content).await {
+            println!("{}", t);
+        };
     }
 
     pub async fn encounter_details(

@@ -15,7 +15,7 @@ use serenity::{
 
 use crate::{errors::Error, StorageClient};
 
-use super::effects::{Attribute, Effectable, LingeringEffect, LingeringEffectName};
+use super::effects::{Attribute, Effectable, LingeringEffect};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Player {
@@ -243,11 +243,11 @@ impl StatsBuilder {
     }
 }
 
-pub enum PlayerEvent {
-    EffectStart(LingeringEffectName),
-    EffectEnd(LingeringEffectName),
-    EffectApplied(LingeringEffect),
-}
+// pub enum PlayerEvent {
+//     EffectStart(LingeringEffectName),
+//     EffectEnd(LingeringEffectName),
+//     EffectApplied(LingeringEffect),
+// }
 
 pub enum RollResult {
     CriticalFail,

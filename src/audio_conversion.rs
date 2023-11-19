@@ -96,9 +96,9 @@ fn get_meta(stream: Arc<[u8]>) -> Result<AudioMeta, Error> {
 #[derive(Debug, Clone)]
 pub struct AudioMeta {
     format_name: Box<str>,
-    bit_rate: Box<str>,
-    sample_rate: Box<str>,
-    channels: u64,
+    // bit_rate: Box<str>,
+    // sample_rate: Box<str>,
+    // channels: u64,
     pub is_stereo: bool,
 }
 
@@ -131,7 +131,7 @@ impl TryFrom<Map<String, Value>> for AudioMeta {
             .parse()
             .expect("Is convertible");
 
-        let channels: u64 = main_stream
+        let _channels: u64 = main_stream
             .get("channels")
             .expect("Channels is determined")
             .as_u64()
@@ -159,16 +159,16 @@ impl TryFrom<Map<String, Value>> for AudioMeta {
             .parse()
             .expect("Is convertible");
 
-        let bit_rate = bit_rate / 1000;
-        let sample_rate = sample_rate / 1000;
+        let _bit_rate = bit_rate / 1000;
+        let _sample_rate = sample_rate / 1000;
 
         println!("Determined the audio meta");
 
         Ok(AudioMeta {
             format_name: format_name.into(),
-            bit_rate: (bit_rate.to_string() + "k").into(),
-            sample_rate: (sample_rate.to_string() + "k").into(),
-            channels: channels.into(),
+            // bit_rate: (bit_rate.to_string() + "k").into(),
+            // sample_rate: (sample_rate.to_string() + "k").into(),
+            // channels: channels.into(),
             is_stereo,
         })
     }
