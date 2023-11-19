@@ -1,5 +1,5 @@
 use core::panic;
-use std::{cmp};
+use std::{cmp, sync::Arc};
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -117,15 +117,15 @@ pub struct PlayerDetails {
     description: String,
 }
 
-impl TryFrom<Vec<ActionRow>> for PlayerDetails {
+impl TryFrom<&Vec<ActionRow>> for PlayerDetails {
     type Error = Error;
-    fn try_from(details_data: Vec<ActionRow>) -> Result<Self, Self::Error> {
+    fn try_from(details_data: &Vec<ActionRow>) -> Result<Self, Self::Error> {
         let mut name = None;
         let mut description = None;
         for row in details_data {
             let component = &row.components[0];
             let (key, value) = match component {
-                ActionRowComponent::InputText(pair) => (pair.custom_id.clone(), pair.value.clone()),
+                ActionRowComponent::InputText(pair) => (&pair.custom_id, &pair.value),
                 _ => return Err(Error::Plain("Should be a text input")),
             };
 
@@ -144,8 +144,11 @@ impl TryFrom<Vec<ActionRow>> for PlayerDetails {
         }
 
         Ok(PlayerDetails {
-            name: name.expect("Fields should be filled out"),
-            description: description.expect("Fields should be filled out"),
+            name: name.expect("Fields should be filled out").as_str().into(),
+            description: description
+                .expect("Fields should be filled out")
+                .as_str()
+                .into(),
         })
     }
 }
@@ -256,17 +259,17 @@ pub enum RollResult {
 // start the process to create a new player
 pub async fn get(
     context: &Context,
-    user_tag: &String,
+    user_tag: Arc<str>,
     channel_id: ChannelId,
 ) -> Result<Player, Error> {
-    match fetch(context, user_tag).await {
+    match fetch(context, &user_tag).await {
         Ok(player) => Ok(player),
         Err(_err) => request(channel_id, user_tag, context).await,
     }
 }
 
 // Fetches the player's save if it exists
-async fn fetch(ctx: &Context, user_tag: &String) -> Result<Player, Error> {
+async fn fetch(ctx: &Context, user_tag: &str) -> Result<Player, Error> {
     let data = ctx.data.read().await;
 
     let storage_client = data.get::<StorageClient>().unwrap();
@@ -292,19 +295,19 @@ async fn fetch(ctx: &Context, user_tag: &String) -> Result<Player, Error> {
         .ok_or(Error::Plain("name field not present in data"))?
         .as_str()
         .expect("Name is a string")
-        .to_string();
+        .into();
     let tag: String = maybe_player_map
         .get("user")
         .ok_or(Error::Plain("name field not present in data"))?
         .as_str()
         .expect("User is a string")
-        .to_string();
+        .into();
     let description: String = maybe_player_map
         .get("description")
         .ok_or(Error::Plain("description field not present in data"))?
         .as_str()
         .expect("Description is a string")
-        .to_string();
+        .into();
     let health: i16 = maybe_player_map
         .get("health")
         .ok_or(Error::Plain("health field not present in data"))?
@@ -392,7 +395,7 @@ pub async fn save(ctx: &Context, player: &Player) -> Result<(), Error> {
 
 pub async fn request(
     channel: ChannelId,
-    user_tag: &String,
+    user_tag: Arc<str>,
     context: &Context,
 ) -> Result<Player, Error> {
     let message = messages::character_details_request(channel, context).await?;
@@ -403,9 +406,9 @@ pub async fn request(
 
     let interaction = await_interaction::modal(&message, context, user_tag.clone()).await?;
 
-    let details_data = interaction.data.components.clone();
+    let details_data = &interaction.data.components;
 
-    messages::stats_request(interaction, context).await?;
+    messages::stats_request(interaction.clone(), context).await?;
 
     let interaction = await_interaction::component(&message, context, user_tag.clone()).await?;
 
@@ -450,7 +453,7 @@ pub async fn request(
 
     let details: PlayerDetails = details_data.try_into()?;
 
-    Ok(Player::new(user_tag.clone(), details, stats))
+    Ok(Player::new(user_tag.to_string(), details, stats))
 }
 
 mod send_modal {
@@ -571,11 +574,11 @@ mod await_interaction {
     pub(crate) async fn component(
         message: &Message,
         context: &Context,
-        user_tag: String,
+        user_tag: Arc<str>,
     ) -> Result<Arc<MessageComponentInteraction>, Error> {
         message
             .await_component_interaction(context)
-            .filter(move |interaction| interaction.user.tag() == user_tag)
+            .filter(move |interaction| interaction.user.tag() == user_tag.as_ref())
             .timeout(Duration::new(120, 0))
             .collect_limit(1)
             .await
@@ -586,11 +589,11 @@ mod await_interaction {
     pub(crate) async fn modal(
         message: &Message,
         context: &Context,
-        user_tag: String,
+        user_tag: Arc<str>,
     ) -> Result<Arc<ModalSubmitInteraction>, Error> {
         message
             .await_modal_interaction(context)
-            .filter(move |interaction| interaction.user.tag() == user_tag)
+            .filter(move |interaction| interaction.user.tag() == user_tag.as_ref())
             .timeout(Duration::new(120, 0))
             .collect_limit(1)
             .await
@@ -708,9 +711,9 @@ impl ToString for InputIds {
     }
 }
 
-impl TryFrom<String> for InputIds {
+impl TryFrom<&String> for InputIds {
     type Error = String;
-    fn try_from(value: String) -> Result<Self, String> {
+    fn try_from(value: &String) -> Result<Self, String> {
         match value.as_str() {
             "name" => Ok(InputIds::Name),
             "description" => Ok(InputIds::Description),

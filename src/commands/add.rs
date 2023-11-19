@@ -2,17 +2,12 @@ use bytes::Bytes;
 
 use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
-    futures::{Stream, StreamExt},
-    model::prelude::{ChannelId, GuildChannel, GuildId, Message},
+    futures::Stream,
+    model::prelude::Message,
     prelude::Context,
 };
 
-use crate::{
-    commands::play::count_tracks,
-    errors::Error,
-    storage::{self, StorageClient},
-    utilities::{message, random},
-};
+use crate::{commands::play::count_tracks, errors::Error, storage::StorageClient};
 
 #[command]
 pub async fn add(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {

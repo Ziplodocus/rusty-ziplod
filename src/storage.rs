@@ -1,8 +1,3 @@
-use std::{
-    io::{BufReader, Read},
-    sync::Arc,
-};
-
 use crate::errors::Error;
 
 use bytes::Bytes;
@@ -20,7 +15,7 @@ use rand::seq::SliceRandom;
 // };
 use serde::Deserialize;
 use serenity::{
-    futures::{future, Stream, StreamExt, TryStream},
+    futures::{Stream, StreamExt},
     prelude::TypeMapKey,
 };
 
@@ -62,7 +57,7 @@ impl StorageClient {
         path: &str,
     ) -> Result<impl Stream<Item = Result<u8, cloud_storage::Error>> + Unpin, Error> {
         let object = self.client.object();
-        let maybe_obj = object.download_streamed(&self.bucket_name, &path);
+        let maybe_obj = object.download_streamed(&self.bucket_name, path);
         println!("Streaming object.");
         maybe_obj.await.map_err(|o| o.into())
     }
@@ -83,7 +78,7 @@ impl StorageClient {
     pub async fn download_json<T: for<'a> Deserialize<'a>>(&self, path: &str) -> Result<T, Error> {
         let bytes = self.download(&(path.to_owned() + ".json")).await?;
 
-        serde_json::from_slice::<T>(&bytes).map_err(|err| Error::Json(err))
+        serde_json::from_slice::<T>(&bytes).map_err(Error::Json)
     }
 
     pub async fn upload(&self, content: String, path: &str, mime_type: &str) -> Result<(), Error> {
@@ -128,7 +123,7 @@ impl StorageClient {
 
     pub async fn fetch_count(&self, prefix: &str) -> Result<usize, Error> {
         let objs = self.fetch_objects(prefix).await?;
-        return Ok(objs.len());
+        Ok(objs.len())
     }
 
     pub async fn fetch_objects(&self, prefix: &str) -> Result<Vec<Object>, Error> {

@@ -13,11 +13,10 @@ pub async fn resolve_voice_channel(ctx: &Context, msg: &Message) -> Result<Guild
 
     let maybe_member = guild.member(ctx, user).await;
 
-    let member = maybe_member.map_err(|_| {
-        return Error::Plain("You can't mention someone not in the guild you fool.".into());
-    })?;
+    let member = maybe_member
+        .map_err(|_| Error::Plain("You can't mention someone not in the guild you fool."))?;
 
-    return fetch_voice_channel(ctx, &guild, &member).await;
+    fetch_voice_channel(ctx, &guild, &member).await
 }
 
 pub async fn fetch_voice_channel(
@@ -45,5 +44,5 @@ pub async fn fetch_voice_channel(
         }
     }
 
-    return Err(Error::Plain("No voice channel found for that user"));
+    Err(Error::Plain("No voice channel found for that user"))
 }

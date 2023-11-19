@@ -1,7 +1,6 @@
 use std::{
-    io::{BufRead, BufReader, BufWriter, Write},
+    io::{BufReader, Write},
     process::{Child, Command, Stdio},
-    rc::Rc,
     sync::Arc,
     thread::{self, JoinHandle},
 };

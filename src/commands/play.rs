@@ -1,10 +1,6 @@
 use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
-    futures::Stream,
-    model::{
-        guild,
-        prelude::{ChannelId, GuildChannel, GuildId, Message},
-    },
+    model::prelude::{ChannelId, GuildChannel, GuildId, Message},
     prelude::Context,
 };
 

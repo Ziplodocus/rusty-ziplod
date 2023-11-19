@@ -35,7 +35,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         return Err(err);
     };
 
-    let mut player = player::get(ctx, &user.tag(), channel_id).await?;
+    let mut player = player::get(ctx, user.tag().into(), channel_id).await?;
     let mut ui = UI::builder().context(ctx).channel(channel_id).build();
 
     loop {

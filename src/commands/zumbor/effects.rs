@@ -18,7 +18,7 @@ impl BaseEffect {
             BaseEffect::Health(eff) => eff.potency,
         }
     }
-    pub fn set_potency(&mut self, potency: i16) -> () {
+    pub fn set_potency(&mut self, potency: i16) {
         match self {
             BaseEffect::Stat(eff) => eff.potency = potency,
             BaseEffect::Health(eff) => eff.potency = potency,

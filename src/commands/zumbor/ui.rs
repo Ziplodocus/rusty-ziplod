@@ -1,24 +1,17 @@
-use std::{
-    collections::VecDeque, fmt, panic, sync::Arc,
-    time::Duration,
-};
+use std::{collections::VecDeque, fmt, panic, sync::Arc, time::Duration};
 
 use serenity::{
-    builder::{CreateEmbed},
-    model::{
-        prelude::{
-            interaction::{
-                message_component::MessageComponentInteraction,
-            }, ChannelId, Message,
-        },
+    builder::CreateEmbed,
+    model::prelude::{
+        interaction::message_component::MessageComponentInteraction, ChannelId, Message,
     },
     prelude::Context,
-    utils::{Colour},
+    utils::Colour,
     Error,
 };
 
 use super::{
-    effects::{BaseEffect},
+    effects::BaseEffect,
     encounter::{Encounter, EncounterResult, EncounterResultName},
     player::Player,
 };
@@ -195,7 +188,7 @@ pub struct UIBuilder<'a> {
 
 impl<'a> UIBuilder<'a> {
     pub fn context(mut self, context: &'a Context) -> Self {
-        self.context = Some(&context);
+        self.context = Some(context);
         self
     }
 

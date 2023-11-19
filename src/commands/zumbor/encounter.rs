@@ -1,13 +1,11 @@
 use crate::errors::Error;
-use std::{collections::HashMap, future};
+use std::collections::HashMap;
 
-use cloud_storage::ListRequest;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use serenity::{
     builder::{CreateComponents, CreateEmbed},
-    futures::StreamExt,
     model::prelude::component::ButtonStyle,
     prelude::Context,
     utils::Colour,
