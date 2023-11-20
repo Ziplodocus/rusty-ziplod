@@ -65,9 +65,9 @@ impl Display for Attribute {
     }
 }
 
-impl Into<String> for Attribute {
-    fn into(self) -> String {
-        match self {
+impl From<Attribute> for String {
+    fn from(value: Attribute) -> Self {
+        match value {
             Attribute::Charisma => "Charisma".to_string(),
             Attribute::Strength => "Strength".to_string(),
             Attribute::Wisdom => "Wisdom".to_string(),
@@ -237,12 +237,11 @@ pub trait Effectable {
     fn add_effect(&mut self, effect: LingeringEffect) {
         let mut effects = self.get_effects();
 
-        match &effect.name {
-            LingeringEffectName::Stat(attr) => self.affect_stat(&BaseStatEffect {
+        if let LingeringEffectName::Stat(attr) = &effect.name {
+            self.affect_stat(&BaseStatEffect {
                 name: attr.clone(),
                 potency: effect.potency,
-            }),
-            _ => (),
+            });
         }
 
         effects.push(effect);
@@ -253,18 +252,15 @@ pub trait Effectable {
     fn remove_effect(&mut self, effect: &LingeringEffect) {
         let mut effects = self.get_effects();
 
-        match &effect.name {
-            LingeringEffectName::Stat(name) => {
-                let potency = match &effect.kind {
-                    LingeringEffectType::Buff => -effect.potency,
-                    LingeringEffectType::Debuff => effect.potency,
-                };
-                self.affect_stat(&BaseStatEffect {
-                    name: name.clone(),
-                    potency,
-                })
-            }
-            _ => (),
+        if let LingeringEffectName::Stat(name) = &effect.name {
+            let potency = match &effect.kind {
+                LingeringEffectType::Buff => -effect.potency,
+                LingeringEffectType::Debuff => effect.potency,
+            };
+            self.affect_stat(&BaseStatEffect {
+                name: name.clone(),
+                potency,
+            })
         }
 
         effects.retain(|eff| eff != effect);

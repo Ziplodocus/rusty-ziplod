@@ -52,8 +52,8 @@ impl From<&Encounter> for CreateComponents {
         components.create_action_row(|row| {
             enc.options.iter().for_each(|(label, _)| {
                 row.create_button(|but| {
-                    but.custom_id(&label)
-                        .label(&label)
+                    but.custom_id(label)
+                        .label(label)
                         .style(ButtonStyle::Primary)
                 });
             });
@@ -228,8 +228,7 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
         .as_str()
         .replace("/encounters/", "/encounters/v2/");
 
-    let encounter_json: String =
-        serde_json::to_string(&encounter).map_err(|err| Error::from(err))?;
+    let encounter_json: String = serde_json::to_string(&encounter).map_err(Error::from)?;
 
     storage_client
         .upload_json(&encounter_name, encounter_json)
@@ -246,7 +245,7 @@ fn hex_to_colour(hex: &str) -> Colour {
 fn json_base_effect_to_struct(map: Map<String, Value>) -> Option<BaseEffect> {
     let effect = map
         .get("baseEffect")
-        .and_then(|val| Some(val.as_object().expect("baseEffect to be an object")));
+        .map(|val| val.as_object().expect("baseEffect to be an object"));
 
     effect.and_then(
         |effect| match effect["name"].as_str().expect("name is a string") {
@@ -254,24 +253,25 @@ fn json_base_effect_to_struct(map: Map<String, Value>) -> Option<BaseEffect> {
                 potency: effect["potency"].as_u64().unwrap().try_into().unwrap(),
             })),
             "Damage" => Some(BaseEffect::Health(BaseHealthEffect {
-                potency: -1
-                    * <i64 as TryInto<i16>>::try_into(effect["potency"].as_i64().unwrap()).unwrap(),
+                potency: -<i64 as TryInto<i16>>::try_into(effect["potency"].as_i64().unwrap())
+                    .unwrap(),
             })),
-            _ => match map_attribute_name(effect["name"].as_str().expect("Name to be a string")) {
-                Some(name) => Some(BaseEffect::Stat(BaseStatEffect {
-                    name,
-                    potency: effect["potency"].as_i64().unwrap().try_into().unwrap(),
-                })),
-                None => None,
-            },
+            _ => map_attribute_name(effect["name"].as_str().expect("Name to be a string")).map(
+                |name| {
+                    BaseEffect::Stat(BaseStatEffect {
+                        name,
+                        potency: effect["potency"].as_i64().unwrap().try_into().unwrap(),
+                    })
+                },
+            ),
         },
     )
 }
 
 fn json_lingering_effect_to_struct(map: Map<String, Value>) -> Option<LingeringEffect> {
     let effect = map
-        .get("addtionalEffect")
-        .and_then(|val| Some(val.as_object().expect("additionalEffect to be an object")));
+        .get("additionalEffect")
+        .map(|val| val.as_object().expect("additionalEffect to be an object"));
 
     println!("{:?}", effect);
 

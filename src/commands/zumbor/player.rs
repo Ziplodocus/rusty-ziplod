@@ -182,7 +182,7 @@ impl Stats {
         }
     }
     pub fn sum(&self) -> i16 {
-        return self.agility + self.charisma + self.strength + self.wisdom;
+        self.agility + self.charisma + self.strength + self.wisdom
     }
     pub fn get_max(&self) -> i16 {
         [self.agility, self.charisma, self.strength, self.wisdom]
@@ -277,8 +277,7 @@ async fn fetch(ctx: &Context, user_tag: &str) -> Result<Player, Error> {
 
     let bytes = storage_client.download(&path).await?;
 
-    let maybe_player: Result<Player, Error> =
-        serde_json::from_slice(&bytes).map_err(|err| Error::Json(err));
+    let maybe_player: Result<Player, Error> = serde_json::from_slice(&bytes).map_err(Error::Json);
 
     // V2 players should be serializable straight to a struct
     if let Ok(player) = maybe_player {
@@ -358,7 +357,7 @@ async fn fetch(ctx: &Context, user_tag: &str) -> Result<Player, Error> {
         tag,
         name,
         description,
-        health: health.try_into().unwrap(),
+        health,
         score,
         stats,
         effects,
@@ -387,7 +386,7 @@ pub async fn save(ctx: &Context, player: &Player) -> Result<(), Error> {
         .get::<StorageClient>()
         .ok_or(Error::Plain("Storage client not accessible!"))?;
 
-    let player_json: String = serde_json::to_string(player).map_err(|err| Error::from(err))?;
+    let player_json: String = serde_json::to_string(player).map_err(Error::Json)?;
     let save_name = "zumbor/saves/".to_string() + &player.tag;
 
     storage_client.upload_json(&save_name, player_json).await
@@ -449,7 +448,9 @@ pub async fn request(
         println!("Sum is {} and max is {}", stats.sum(), stats.get_max());
     }
 
-    message.delete(context).await;
+    if let Err(er) = message.delete(context).await {
+        println!("Failed to delete previous message!: {}", er);
+    };
 
     let details: PlayerDetails = details_data.try_into()?;
 

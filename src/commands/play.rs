@@ -24,7 +24,7 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
     let voice_channel = maybe_voice_channel?;
 
     let track_type: String = match args.single::<String>() {
-        Ok(arg) => arg.into(),
+        Ok(arg) => arg,
         Err(_) => get_random_track_type(),
     };
 
@@ -33,7 +33,7 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
         Err(e) => {
             msg.reply(
                 ctx,
-                format!("The request can't be completed right now dufus."),
+                "The request can't be completed right now dufus.".to_string(),
             )
             .await?;
             println!("{e}");

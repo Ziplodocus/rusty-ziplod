@@ -157,12 +157,6 @@ impl UI<'_> {
         }
     }
 
-    pub async fn send_player_info(&self, player: &Player) -> Result<Message, Error> {
-        self.channel
-            .send_message(self.context, |msg| msg.set_embed(player.into()))
-            .await
-    }
-
     pub fn queue_message(&mut self, message: CreateEmbed) {
         self.messages.push_back(message);
     }

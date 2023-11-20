@@ -59,7 +59,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
                 }
                 _ => (),
             };
-            player.affect(&effect)
+            player.affect(effect)
         }
 
         // Handle lingering effects of the result
@@ -88,7 +88,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         player.add_score(1);
 
         if let Err(err) = ui
-            .encounter_result(&encounter_result, &player, current_message)
+            .encounter_result(encounter_result, &player, current_message)
             .await
         {
             println!("Unable to display the encounter result. {}", err);

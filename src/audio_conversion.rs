@@ -9,10 +9,9 @@ use serde_json::{Map, Value};
 
 use crate::errors::Error;
 
-pub fn convert(
-    stream: Arc<[u8]>,
-    format: &str,
-) -> Result<(Child, AudioMeta, JoinHandle<Result<(), Error>>), Error> {
+type ConversionDetails = (Child, AudioMeta, JoinHandle<Result<(), Error>>);
+
+pub fn convert(stream: Arc<[u8]>, format: &str) -> Result<ConversionDetails, Error> {
     let meta = get_meta(stream.clone())?;
 
     println!("Converting the audio from mp3...");
@@ -44,7 +43,7 @@ pub fn convert(
         Ok(())
     });
 
-    return Ok((ffmpeg, meta, write_handle));
+    Ok((ffmpeg, meta, write_handle))
 }
 
 fn get_meta(stream: Arc<[u8]>) -> Result<AudioMeta, Error> {
