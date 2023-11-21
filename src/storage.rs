@@ -96,12 +96,19 @@ impl StorageClient {
         &self,
         stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Send + Sync + 'static,
         path: &str,
+        length: impl Into<Option<u64>>,
         mime_type: &str,
     ) -> Result<(), Error> {
-        self.client
+        let res = self
+            .client
             .object()
-            .create_streamed(&self.bucket_name, stream, 10, path, mime_type)
-            .await?;
+            .create_streamed(&self.bucket_name, stream, length, path, mime_type)
+            .await;
+
+        if let Err(err) = res {
+            dbg!(&err);
+        }
+
         Ok(())
     }
 

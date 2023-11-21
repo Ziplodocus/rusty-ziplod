@@ -43,13 +43,12 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
     .try_into()
     .unwrap_or(1);
 
-    if track_count == 0 {
-        track_count = 1
-    }
-
-    let track_num = args
-        .single::<u32>()
-        .unwrap_or_else(|_| random::random_range(0, track_count - 1));
+    let track_num = match track_count {
+        0...1 => 0,
+        _ => args
+            .single::<u32>()
+            .unwrap_or_else(|_| random::random_range(0, track_count - 1)),
+    };
 
     if track_num >= track_count {
         msg.reply(ctx, format!("There is no {track_type} {track_num}"))

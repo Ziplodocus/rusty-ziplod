@@ -9,8 +9,8 @@ use serenity::{
     utils::Colour,
 };
 
-use crate::errors::Error;
 use crate::ZumborInstances;
+use crate::{errors::Error, utilities::message::quick_embed};
 
 use super::{
     effects::Effectable,
@@ -202,16 +202,6 @@ async fn nice_message(
         })
         .await?;
     Ok(res)
-}
-
-fn quick_embed(title: String, description: Option<String>) -> CreateEmbed {
-    let mut embed = CreateEmbed::default();
-    embed.title(title);
-    if let Some(description) = description {
-        embed.description(description);
-    }
-
-    embed
 }
 
 /**

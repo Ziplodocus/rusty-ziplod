@@ -105,6 +105,7 @@ impl TryFrom<Map<String, Value>> for AudioMeta {
     type Error = Error;
 
     fn try_from(map: Map<String, Value>) -> Result<AudioMeta, Error> {
+        dbg!(&map);
         /*
          * @todo If the command fails to determine information about the audio file, currently the thread will panic becasue fo teh expects
          */

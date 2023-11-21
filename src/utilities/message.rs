@@ -1,4 +1,5 @@
 use serenity::{
+    builder::CreateEmbed,
     model::prelude::{ChannelType, Guild, GuildChannel, Member, Message},
     prelude::Context,
 };
@@ -45,4 +46,14 @@ pub async fn fetch_voice_channel(
     }
 
     Err(Error::Plain("No voice channel found for that user"))
+}
+
+pub fn quick_embed(title: String, description: Option<String>) -> CreateEmbed {
+    let mut embed = CreateEmbed::default();
+    embed.title(title);
+    if let Some(description) = description {
+        embed.description(description);
+    }
+
+    embed
 }
