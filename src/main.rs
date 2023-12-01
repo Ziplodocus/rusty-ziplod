@@ -64,6 +64,8 @@ async fn main() {
 
         let storage_client = StorageClient::new(bucket_name).await;
 
+        // add_stereo_meta_information(&storage_client).await;
+
         data.insert::<StorageClient>(storage_client);
     }
 

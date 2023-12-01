@@ -1,18 +1,10 @@
-
-
-
 use serenity::{
     model::prelude::{ChannelId, GuildId},
     prelude::Context,
 };
-use songbird::{
-    input::{
-        children_to_reader, Codec, Container, Input,
-    },
-};
+use songbird::input::{children_to_reader, Codec, Container, Input};
 
-
-use crate::{errors::Error, audio_conversion};
+use crate::{audio_conversion, errors::Error};
 
 // async fn join(ctx: &Context, channel_id: ChannelId, guild_id: GuildId) -> CommandResult {
 //     let manager = songbird::get(ctx)
@@ -57,16 +49,17 @@ pub async fn play(
     channel_id: ChannelId,
     guild_id: GuildId,
     file_stream: Vec<u8>,
+    is_stereo: bool,
 ) -> Result<(), Error> {
     let manager = songbird::get(ctx)
         .await
         .expect("Songbird Voice client placed in at initialisation.")
         .clone();
 
-    let (ffmpeg, meta, _writer_handle) = audio_conversion::convert(file_stream.into(), "f32le")?;
+    let (ffmpeg, _writer_handle) = audio_conversion::convert(file_stream.into(), "f32le")?;
 
     let source = Input::new(
-        meta.is_stereo,
+        is_stereo,
         children_to_reader::<f32>(vec![ffmpeg]),
         Codec::FloatPcm,
         Container::Raw,

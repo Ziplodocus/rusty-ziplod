@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
     model::prelude::{ChannelId, GuildChannel, GuildId, Message},
@@ -28,7 +30,7 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
         Err(_) => get_random_track_type(),
     };
 
-    let mut track_count: u32 = match count_tracks(ctx, &track_type).await {
+    let track_count: u32 = match count_tracks(ctx, &track_type).await {
         Ok(val) => val,
         Err(e) => {
             msg.reply(
@@ -75,19 +77,31 @@ async fn play_track<'a>(
 ) -> Result<(), Error> {
     println!("Fetching track...");
 
-    let track_stream = fetch_track(ctx, &track_type, track_num).await?;
+    let (track_stream, is_stereo) = fetch_track(ctx, &track_type, track_num).await?;
+
+    if is_stereo.is_none() {
+        return Err(Error::Plain(
+            "File doesn't have stero meta data associated with it!",
+        ));
+    }
 
     let guild_id = voice_channel
         .guild(ctx)
         .expect("The channel to be in a guild")
         .id;
 
-    play_audio_in_channel(ctx, track_stream, voice_channel.id, guild_id)
-        .await
-        .map_err(|o| {
-            println!("{o}");
-            o
-        })?;
+    play_audio_in_channel(
+        ctx,
+        track_stream,
+        voice_channel.id,
+        guild_id,
+        is_stereo.unwrap(),
+    )
+    .await
+    .map_err(|o| {
+        println!("{o}");
+        o
+    })?;
     Ok(())
 }
 
@@ -105,15 +119,22 @@ pub async fn count_tracks(ctx: &Context, track_type: &str) -> Result<usize, Erro
     storage_client.fetch_count(&file_name).await
 }
 
-async fn fetch_track(ctx: &Context, track_type: &str, track_num: u32) -> Result<Vec<u8>, Error> {
+async fn fetch_track<'a>(
+    ctx: &Context,
+    track_type: &str,
+    track_num: u32,
+) -> Result<(Vec<u8>, Option<bool>), Error> {
     let data = ctx.data.read().await;
     let storage_client = data
         .get::<StorageClient>()
         .expect("Storage client is available in the context");
     println!("Fetching {track_type} {track_num}");
-    let file_name = format!("tracks/{track_type}/{track_num}.mp3");
+    let file_name: Arc<str> = format!("tracks/{track_type}/{track_num}.mp3").into();
 
-    storage_client.download(&file_name).await
+    let file = storage_client.download(&file_name.clone()).await?;
+    let is_stereo = storage_client.is_stereo(&file_name.clone()).await?;
+
+    Ok((file, is_stereo))
 }
 
 async fn play_audio_in_channel(
@@ -121,9 +142,10 @@ async fn play_audio_in_channel(
     audio_stream: Vec<u8>,
     channel: ChannelId,
     guild: GuildId,
+    is_stereo: bool,
 ) -> Result<(), Error> {
     println!("Streaming audio to channel {channel}...");
-    voice::play(ctx, channel, guild, audio_stream).await?;
+    voice::play(ctx, channel, guild, audio_stream, is_stereo).await?;
 
     Ok(())
 }

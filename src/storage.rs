@@ -66,9 +66,22 @@ impl StorageClient {
         let object = self.client.object();
         let maybe_obj = object.download(&self.bucket_name, path).await;
         println!("Downloaded object.");
-        let obj = object.read(&self.bucket_name, path).await?;
-        dbg!(obj.metadata);
         maybe_obj.map_err(|o| o.into())
+    }
+
+    pub async fn is_stereo(&self, path: &str) -> Result<Option<bool>, Error> {
+        let obj = self.client.object().read(&self.bucket_name, path).await?;
+        match obj.metadata {
+            Some(map) => match map.get("is_stereo") {
+                Some(val) => match val.as_str() {
+                    "true" => Ok(Some(true)),
+                    "false" => Ok(Some(false)),
+                    _ => Ok(None),
+                },
+                None => Ok(None),
+            },
+            None => Ok(None),
+        }
     }
 
     pub async fn remove_json(&self, path: &str) -> Result<(), Error> {
@@ -81,7 +94,12 @@ impl StorageClient {
         serde_json::from_slice::<T>(&bytes).map_err(Error::Json)
     }
 
-    pub async fn upload(&self, content: String, path: &str, mime_type: &str) -> Result<(), Error> {
+    pub async fn upload(
+        &self,
+        content: impl Into<Vec<u8>>,
+        path: &str,
+        mime_type: &str,
+    ) -> Result<(), Error> {
         self.client
             .object()
             .create(&self.bucket_name, content.into(), path, mime_type)

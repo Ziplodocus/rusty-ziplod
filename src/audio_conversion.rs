@@ -9,22 +9,14 @@ use serde_json::{Map, Value};
 
 use crate::errors::Error;
 
-type ConversionDetails = (Child, AudioMeta, JoinHandle<Result<(), Error>>);
+type ConversionDetails = (Child, JoinHandle<Result<(), Error>>);
 
 pub fn convert(stream: Arc<[u8]>, format: &str) -> Result<ConversionDetails, Error> {
-    let meta = get_meta(stream.clone())?;
-
     println!("Converting the audio from mp3...");
     let ffmpeg_args = [
-        "-v",
-        "error",
-        "-f",
-        &meta.format_name,
-        "-i",
-        "pipe:0",
-        "-f",
-        format,
-        "pipe:1",
+        "-v", "error", // "-f",
+        // &meta.format_name,
+        "-i", "pipe:0", "-f", format, "pipe:1",
     ];
 
     let mut ffmpeg = Command::new("ffmpeg")
@@ -43,10 +35,10 @@ pub fn convert(stream: Arc<[u8]>, format: &str) -> Result<ConversionDetails, Err
         Ok(())
     });
 
-    Ok((ffmpeg, meta, write_handle))
+    Ok((ffmpeg, write_handle))
 }
 
-fn get_meta(stream: Arc<[u8]>) -> Result<AudioMeta, Error> {
+pub fn get_meta(stream: Arc<[u8]>) -> Result<AudioMeta, Error> {
     println!("Getting the audio meta");
     let mut cmd = Command::new("ffprobe")
         .args([
