@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{assets, errors::Error};
+use crate::errors::Error;
 
 use bytes::Bytes;
 use cloud_storage::{Client, ListRequest, Object};
@@ -196,20 +196,24 @@ struct StorageManager<'a> {
 
 impl StorageManager<'_> {
     async fn get(self: &Self, name: &str) -> Result<Vec<u8>, Error> {
-        self.client.get(self.full_path(name)).await
+        self.client.get(self.get_full_path(name).as_str()).await
     }
 
     async fn create(self: &Self, name: &str, content: Vec<u8>) -> Result<(), Error> {
         self.client
-            .create(content, self.full_path(name), &self.mime.to_boxed_str())
+            .create(
+                content,
+                self.get_full_path(name).as_str(),
+                &self.mime.to_boxed_str(),
+            )
             .await
     }
 
     async fn delete(self: &Self, name: &str) -> Result<(), Error> {
-        self.client.delete(self.full_path(name)).await
+        self.client.delete(self.get_full_path(name).as_str()).await
     }
 
-    fn full_path(self: &Self, name: &str) -> &str {
-        &(Into::<String>::into(self.prefix) + name + &self.mime.to_boxed_str())
+    fn get_full_path(self: &Self, name: &str) -> String {
+        self.prefix.to_string() + name + self.mime.to_boxed_str().as_ref()
     }
 }

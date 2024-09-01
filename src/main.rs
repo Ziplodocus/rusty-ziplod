@@ -1,4 +1,3 @@
-mod assets;
 mod audio_conversion;
 mod commands;
 mod errors;
