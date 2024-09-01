@@ -1,23 +1,18 @@
-use crate::errors::Error;
+use std::sync::Arc;
+
+use crate::{assets, errors::Error};
 
 use bytes::Bytes;
 use cloud_storage::{Client, ListRequest, Object};
 use rand::seq::SliceRandom;
-// use google_cloud_default::WithAuthExt;
-// use google_cloud_storage::{
-//     client::{Client, ClientConfig},
-//     http::objects::{
-//         delete::DeleteObjectRequest,
-//         download::Range,
-//         get::GetObjectRequest,
-//         upload::{Media, UploadObjectRequest, UploadType},
-//     },
-// };
 use serde::Deserialize;
 use serenity::{
+    client::Context,
     futures::{Stream, StreamExt},
     prelude::TypeMapKey,
 };
+use songbird::typemap::TypeMap;
+use tokio::sync::RwLockReadGuard;
 
 #[derive(Debug)]
 pub struct StorageClient {
@@ -34,6 +29,7 @@ impl StorageClient {
             .read(&bucket_name)
             .await
             .expect("Bucket Success");
+
         StorageClient {
             client,
             bucket,
@@ -41,7 +37,7 @@ impl StorageClient {
         }
     }
 
-    pub async fn remove(&self, path: &str) -> Result<(), Error> {
+    pub async fn delete(&self, path: &str) -> Result<(), Error> {
         self.client
             .object()
             .delete(&self.bucket_name, path)
@@ -52,7 +48,7 @@ impl StorageClient {
             })
     }
 
-    pub async fn download_stream(
+    pub async fn get_stream(
         &self,
         path: &str,
     ) -> Result<impl Stream<Item = Result<u8, cloud_storage::Error>> + Unpin, Error> {
@@ -62,7 +58,7 @@ impl StorageClient {
         maybe_obj.await.map_err(|o| o.into())
     }
 
-    pub async fn download(&self, path: &str) -> Result<Vec<u8>, Error> {
+    pub async fn get(&self, path: &str) -> Result<Vec<u8>, Error> {
         let object = self.client.object();
         let maybe_obj = object.download(&self.bucket_name, path).await;
         println!("Downloaded object.");
@@ -84,17 +80,17 @@ impl StorageClient {
         }
     }
 
-    pub async fn remove_json(&self, path: &str) -> Result<(), Error> {
-        self.remove(&(path.to_owned() + ".json")).await
+    pub async fn delete_json(&self, path: &str) -> Result<(), Error> {
+        self.delete(&(path.to_owned() + ".json")).await
     }
 
-    pub async fn download_json<T: for<'a> Deserialize<'a>>(&self, path: &str) -> Result<T, Error> {
-        let bytes = self.download(&(path.to_owned() + ".json")).await?;
+    pub async fn get_json<T: for<'a> Deserialize<'a>>(&self, path: &str) -> Result<T, Error> {
+        let bytes = self.get(&(path.to_owned() + ".json")).await?;
 
         serde_json::from_slice::<T>(&bytes).map_err(Error::Json)
     }
 
-    pub async fn upload(
+    pub async fn create(
         &self,
         content: impl Into<Vec<u8>>,
         path: &str,
@@ -110,7 +106,7 @@ impl StorageClient {
     /**
      *
      */
-    pub async fn upload_stream(
+    pub async fn create_stream(
         &self,
         stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Send + Sync + 'static,
         path: &str,
@@ -130,12 +126,12 @@ impl StorageClient {
         Ok(())
     }
 
-    pub async fn upload_json(&self, path: &str, content: String) -> Result<(), Error> {
-        self.upload(content, path, "application/json").await
+    pub async fn create_json(&self, path: &str, content: String) -> Result<(), Error> {
+        self.create(content, path, "application/json").await
     }
 
-    pub async fn download_random(&self, prefix: &str) -> Result<Vec<u8>, Error> {
-        let objects = self.fetch_objects(prefix).await?;
+    pub async fn get_random(&self, prefix: &str) -> Result<Vec<u8>, Error> {
+        let objects = self.get_objects(prefix).await?;
 
         println!("{:?}", objects);
 
@@ -143,15 +139,15 @@ impl StorageClient {
             .choose(&mut rand::thread_rng())
             .expect("The random number generated not to exceed the number of objects");
 
-        self.download(&object.name).await
+        self.get(&object.name).await
     }
 
-    pub async fn fetch_count(&self, prefix: &str) -> Result<usize, Error> {
-        let objs = self.fetch_objects(prefix).await?;
+    pub async fn get_count(&self, prefix: &str) -> Result<usize, Error> {
+        let objs = self.get_objects(prefix).await?;
         Ok(objs.len())
     }
 
-    pub async fn fetch_objects(&self, prefix: &str) -> Result<Vec<Object>, Error> {
+    pub async fn get_objects(&self, prefix: &str) -> Result<Vec<Object>, Error> {
         let list = self
             .client
             .object()
@@ -176,4 +172,44 @@ impl StorageClient {
 
 impl TypeMapKey for StorageClient {
     type Value = StorageClient;
+}
+
+pub enum MimeType {
+    MP3,
+    JSON,
+}
+
+impl MimeType {
+    fn to_boxed_str(self: &Self) -> Box<str> {
+        match self {
+            Self::MP3 => "mp3".into(),
+            Self::JSON => "json".into(),
+        }
+    }
+}
+
+struct StorageManager<'a> {
+    client: &'a StorageClient,
+    prefix: Box<str>,
+    mime: MimeType,
+}
+
+impl StorageManager<'_> {
+    async fn get(self: &Self, name: &str) -> Result<Vec<u8>, Error> {
+        self.client.get(self.full_path(name)).await
+    }
+
+    async fn create(self: &Self, name: &str, content: Vec<u8>) -> Result<(), Error> {
+        self.client
+            .create(content, self.full_path(name), &self.mime.to_boxed_str())
+            .await
+    }
+
+    async fn delete(self: &Self, name: &str) -> Result<(), Error> {
+        self.client.delete(self.full_path(name)).await
+    }
+
+    fn full_path(self: &Self, name: &str) -> &str {
+        &(Into::<String>::into(self.prefix) + name + &self.mime.to_boxed_str())
+    }
 }

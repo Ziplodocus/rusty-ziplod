@@ -198,7 +198,7 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
         .get::<StorageClient>()
         .expect("Storage client is available in context");
 
-    let objects = storage_client.fetch_objects("zumbor/encounters").await?;
+    let objects = storage_client.get_objects("zumbor/encounters").await?;
 
     println!("{:?}", objects);
 
@@ -206,7 +206,7 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
         .choose(&mut rand::thread_rng())
         .expect("Random number is limited to the number of objects");
 
-    let byte_array = storage_client.download(&object.name).await?;
+    let byte_array = storage_client.get(&object.name).await?;
 
     let encounter: Result<Encounter, _> = serde_json::from_slice(&byte_array);
 
@@ -231,7 +231,7 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
     let encounter_json: String = serde_json::to_string(&encounter).map_err(Error::from)?;
 
     storage_client
-        .upload_json(&encounter_name, encounter_json)
+        .create_json(&encounter_name, encounter_json)
         .await?;
 
     Ok(encounter)

@@ -275,7 +275,7 @@ async fn fetch(ctx: &Context, user_tag: &str) -> Result<Player, Error> {
     let storage_client = data.get::<StorageClient>().unwrap();
     let path = "zumbor/saves/".to_string() + user_tag + ".json";
 
-    let bytes = storage_client.download(&path).await?;
+    let bytes = storage_client.get(&path).await?;
 
     let maybe_player: Result<Player, Error> = serde_json::from_slice(&bytes).map_err(Error::Json);
 
@@ -375,7 +375,7 @@ pub async fn delete(ctx: &Context, player: &Player) -> Result<(), Error> {
 
     dbg!(&player.tag);
     storage_client
-        .remove_json(("zumbor/saves/".to_string() + &player.tag).as_str())
+        .delete_json(("zumbor/saves/".to_string() + &player.tag).as_str())
         .await
 }
 
@@ -389,7 +389,7 @@ pub async fn save(ctx: &Context, player: &Player) -> Result<(), Error> {
     let player_json: String = serde_json::to_string(player).map_err(Error::Json)?;
     let save_name = "zumbor/saves/".to_string() + &player.tag;
 
-    storage_client.upload_json(&save_name, player_json).await
+    storage_client.create_json(&save_name, player_json).await
 }
 
 pub async fn request(

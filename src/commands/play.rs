@@ -116,7 +116,7 @@ pub async fn count_tracks(ctx: &Context, track_type: &str) -> Result<usize, Erro
         .get::<StorageClient>()
         .expect("Storage client is available in the context");
     let file_name = format!("tracks/{track_type}/");
-    storage_client.fetch_count(&file_name).await
+    storage_client.get_count(&file_name).await
 }
 
 async fn fetch_track<'a>(
@@ -131,7 +131,7 @@ async fn fetch_track<'a>(
     println!("Fetching {track_type} {track_num}");
     let file_name: Arc<str> = format!("tracks/{track_type}/{track_num}.mp3").into();
 
-    let file = storage_client.download(&file_name.clone()).await?;
+    let file = storage_client.get(&file_name.clone()).await?;
     let is_stereo = storage_client.is_stereo(&file_name.clone()).await?;
 
     Ok((file, is_stereo))

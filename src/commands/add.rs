@@ -48,7 +48,7 @@ pub async fn add(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult 
     let path: Box<str> = format!("tracks/{track_type}/{num}.mp3").into();
 
     if let Err(_err) = storage_client
-        .upload_stream(stream, &path, None, "audio/mpeg")
+        .create_stream(stream, &path, None, "audio/mpeg")
         .await
     {
         println!("Failed to upload the object :(");
