@@ -112,7 +112,7 @@ impl TryFrom<Map<String, Value>> for AudioMeta {
             .expect("There is a stream")
             .as_array()
             .expect("Streams to be in the form of an array")
-            .get(0)
+            .first()
             .expect("Uh oh there was no stream");
 
         let sample_rate: u64 = main_stream

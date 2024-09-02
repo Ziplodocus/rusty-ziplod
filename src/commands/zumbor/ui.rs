@@ -6,13 +6,11 @@ use serenity::{
         interaction::message_component::MessageComponentInteraction, ChannelId, Message,
     },
     prelude::Context,
-    utils::Colour,
     Error,
 };
 
 use super::{
-    effects::BaseEffect,
-    encounter::{Encounter, EncounterResult, EncounterResultName},
+    encounter::{Encounter, EncounterResult},
     player::Player,
 };
 
@@ -39,6 +37,7 @@ impl UI<'_> {
         encounter: &Encounter,
         player: &Player,
     ) -> Result<(String, Message), Error> {
+        println!("{:?}", player);
         let user_tag = player.tag.clone();
 
         let message = self
@@ -205,31 +204,6 @@ impl<'a> UIBuilder<'a> {
             messages: VecDeque::new(),
         }
     }
-}
-
-fn create_result_embed(result: &EncounterResult) -> CreateEmbed {
-    let mut embed = CreateEmbed::default();
-
-    embed
-        .title(&result.title)
-        .description(&result.text)
-        .colour(match &result.kind {
-            EncounterResultName::Success(_) => Colour::from((20, 240, 60)),
-            EncounterResultName::Fail(_) => Colour::from((240, 40, 20)),
-        });
-
-    if let Some(effect) = &result.base_effect {
-        match effect {
-            BaseEffect::Stat(eff) => {
-                embed.field(&eff.name, eff.potency, true);
-            }
-            BaseEffect::Health(eff) => {
-                embed.field("Health", eff.potency, true);
-            }
-        }
-    }
-
-    embed
 }
 
 pub enum ContinueOption {

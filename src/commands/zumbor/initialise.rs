@@ -1,6 +1,5 @@
 use serenity::{
     builder::CreateEmbed,
-    http::Http,
     model::{
         prelude::{ChannelId, Message, UserId},
         user::User,
@@ -35,11 +34,16 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         return Err(err);
     };
 
-    let mut player = player::get(ctx, user.tag().into(), channel_id).await?;
+    let mut player = if let Ok(player) = player::storage::load_save(ctx, &user.tag()).await {
+        player
+    } else {
+        player::create(ctx, user.tag().into(), channel_id).await?
+    };
+
     let mut ui = UI::builder().context(ctx).channel(channel_id).build();
 
     loop {
-        let mut encounter: Encounter = encounter::fetch(ctx).await?;
+        let mut encounter: Encounter = encounter::get_random(ctx).await?;
 
         let (player_choice, current_message) = ui.encounter_details(&encounter, &player).await?;
 
@@ -100,7 +104,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             ui.say(format!("Uh oh {} died", &player.name).as_ref())
                 .await;
 
-            if let Err(err) = player::delete(ctx, &player).await {
+            if let Err(err) = player.delete_save(ctx).await {
                 println!("Unable to delete the player save. {}", err);
             };
             // match scoreboard.update(player).await {
@@ -131,7 +135,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             Some(player.name.clone() + " takes a break"),
         ));
 
-        match player::save(ctx, &player).await {
+        match player.save(ctx).await {
             Ok(_saved) => ui.queue_message(quick_embed("Save Succesful.".to_string(), None)),
             Err(err) => {
                 println!("{}", err);
@@ -191,7 +195,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 // }
 
 async fn nice_message(
-    ctx: impl AsRef<Http>,
+    ctx: &Context,
     channel_id: ChannelId,
     title: String,
     description: String,

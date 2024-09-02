@@ -4,10 +4,11 @@ use serenity::{
     prelude::Context,
 };
 
+mod attributes;
 mod effects;
 mod encounter;
 mod initialise;
-pub mod player;
+mod player;
 mod ui;
 use initialise::start;
 

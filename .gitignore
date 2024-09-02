@@ -4,3 +4,4 @@ ziplod-google-auth.json
 .vscode
 .env
 service-account-ziplod.json
+.google-application-credentials.json

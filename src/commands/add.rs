@@ -61,7 +61,7 @@ pub async fn add(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult 
 async fn fetch_attachment_stream(
     msg: &Message,
 ) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>, Error> {
-    let file = match msg.attachments.get(0) {
+    let file = match msg.attachments.first() {
         Some(attach) => attach,
         None => return Err(Error::Plain("That message has no attachments dummy.")),
     };

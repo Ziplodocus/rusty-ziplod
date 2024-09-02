@@ -11,12 +11,13 @@ use serenity::{
     utils::Colour,
 };
 
-use crate::{commands::zumbor::effects::map_attribute_name, StorageClient};
+use crate::StorageClient;
 
 use super::{
+    attributes::Attribute,
     effects::{
-        Attribute, BaseEffect, BaseHealthEffect, BaseStatEffect, LingeringEffect,
-        LingeringEffectName, LingeringEffectType,
+        BaseEffect, BaseHealthEffect, BaseStatEffect, LingeringEffect, LingeringEffectName,
+        LingeringEffectType,
     },
     player::RollResult,
 };
@@ -99,7 +100,7 @@ impl TryFrom<Value> for Encounter {
 
                 let option = EncounterOption {
                     threshold: value["threshold"].as_u64().unwrap().try_into().unwrap(),
-                    stat: map_attribute_name(value["stat"].as_str().unwrap()).unwrap(),
+                    stat: value["stat"].as_str().unwrap().try_into().unwrap(),
                     success: success_result,
                     fail: fail_result,
                 };
@@ -150,6 +151,7 @@ impl EncounterOption {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct EncounterResult {
+    #[serde(alias = "type")]
     pub kind: EncounterResultName,
     pub title: String,
     pub text: String,
@@ -191,7 +193,7 @@ pub enum EncounterResultName {
 }
 
 // Return a random encounter from the storage bucket
-pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
+pub async fn get_random(ctx: &Context) -> Result<Encounter, Error> {
     let data = ctx.data.read().await;
 
     let storage_client = data
@@ -200,7 +202,7 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
 
     let objects = storage_client.get_objects("zumbor/encounters").await?;
 
-    println!("{:?}", objects);
+    // println!("{:?}", objects);
 
     let object = objects
         .choose(&mut rand::thread_rng())
@@ -223,10 +225,14 @@ pub async fn fetch(ctx: &Context) -> Result<Encounter, Error> {
 
     let encounter = Encounter::try_from(enc)?;
 
-    let encounter_name = object
+    let mut encounter_name = object
         .name
         .as_str()
+        .replace(" ", "-")
+        .replace("%20", "-")
         .replace("/encounters/", "/encounters/v2/");
+
+    encounter_name.make_ascii_lowercase();
 
     let encounter_json: String = serde_json::to_string(&encounter).map_err(Error::from)?;
 
@@ -256,14 +262,17 @@ fn json_base_effect_to_struct(map: Map<String, Value>) -> Option<BaseEffect> {
                 potency: -<i64 as TryInto<i16>>::try_into(effect["potency"].as_i64().unwrap())
                     .unwrap(),
             })),
-            _ => map_attribute_name(effect["name"].as_str().expect("Name to be a string")).map(
-                |name| {
+            _ => effect["name"]
+                .as_str()
+                .expect("Name to be a string")
+                .try_into()
+                .map(|name| {
                     BaseEffect::Stat(BaseStatEffect {
                         name,
                         potency: effect["potency"].as_i64().unwrap().try_into().unwrap(),
                     })
-                },
-            ),
+                })
+                .ok(),
         },
     )
 }
@@ -305,8 +314,9 @@ fn json_lingering_effect_to_struct(map: Map<String, Value>) -> Option<LingeringE
                     .try_into()
                     .expect("Should be small enough to convert to a 16 bit signed integer"),
             }),
-            _ => map_attribute_name(effect["name"].as_str().expect("Name to be a string")).map(
-                |name| LingeringEffect {
+            _ => (effect["name"].as_str().expect("Name to be a string"))
+                .try_into()
+                .map(|name| LingeringEffect {
                     kind: LingeringEffectType::try_from(
                         effect["type"].as_str().expect("type to be a string"),
                     )
@@ -325,8 +335,8 @@ fn json_lingering_effect_to_struct(map: Map<String, Value>) -> Option<LingeringE
                         .expect("potency to be a number")
                         .try_into()
                         .expect("Should be small enough to convert to a 16 bit signed integer"),
-                },
-            ),
+                })
+                .ok(),
         },
     )
 }

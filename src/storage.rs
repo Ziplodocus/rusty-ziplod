@@ -1,4 +1,3 @@
-use std::sync::Arc;
 
 use crate::errors::Error;
 
@@ -7,32 +6,22 @@ use cloud_storage::{Client, ListRequest, Object};
 use rand::seq::SliceRandom;
 use serde::Deserialize;
 use serenity::{
-    client::Context,
     futures::{Stream, StreamExt},
     prelude::TypeMapKey,
 };
-use songbird::typemap::TypeMap;
-use tokio::sync::RwLockReadGuard;
 
 #[derive(Debug)]
 pub struct StorageClient {
     pub client: cloud_storage::Client,
-    pub bucket: cloud_storage::Bucket,
     pub bucket_name: String,
 }
 
 impl StorageClient {
     pub async fn new(bucket_name: String) -> Self {
         let client = Client::new();
-        let bucket = client
-            .bucket()
-            .read(&bucket_name)
-            .await
-            .expect("Bucket Success");
 
         StorageClient {
             client,
-            bucket,
             bucket_name,
         }
     }
@@ -104,7 +93,7 @@ impl StorageClient {
     }
 
     /**
-     *
+     * Uploads a stream of bytes through the storage driver
      */
     pub async fn create_stream(
         &self,
@@ -176,14 +165,14 @@ impl TypeMapKey for StorageClient {
 
 pub enum MimeType {
     MP3,
-    JSON,
+    Json,
 }
 
-impl MimeType {
-    fn to_boxed_str(self: &Self) -> Box<str> {
-        match self {
-            Self::MP3 => "mp3".into(),
-            Self::JSON => "json".into(),
+impl From<&MimeType> for &str {
+    fn from(value: &MimeType) -> Self {
+        match value {
+            MimeType::MP3 => "mp3",
+            MimeType::Json => "json",
         }
     }
 }
@@ -195,25 +184,25 @@ struct StorageManager<'a> {
 }
 
 impl StorageManager<'_> {
-    async fn get(self: &Self, name: &str) -> Result<Vec<u8>, Error> {
+    async fn get(&self, name: &str) -> Result<Vec<u8>, Error> {
         self.client.get(self.get_full_path(name).as_str()).await
     }
 
-    async fn create(self: &Self, name: &str, content: Vec<u8>) -> Result<(), Error> {
+    async fn create(&self, name: &str, content: Vec<u8>) -> Result<(), Error> {
         self.client
             .create(
                 content,
                 self.get_full_path(name).as_str(),
-                &self.mime.to_boxed_str(),
+                (&self.mime).into(),
             )
             .await
     }
 
-    async fn delete(self: &Self, name: &str) -> Result<(), Error> {
+    async fn delete(&self, name: &str) -> Result<(), Error> {
         self.client.delete(self.get_full_path(name).as_str()).await
     }
 
-    fn get_full_path(self: &Self, name: &str) -> String {
-        self.prefix.to_string() + name + self.mime.to_boxed_str().as_ref()
+    fn get_full_path(&self, name: &str) -> String {
+        self.prefix.to_string() + name + (&self.mime).into()
     }
 }

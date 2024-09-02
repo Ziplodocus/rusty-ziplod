@@ -1,9 +1,11 @@
 use std::fmt::{self, Display};
 
 use serde::{Deserialize, Serialize};
-use serenity::{builder::CreateEmbed, utils::Colour, Error};
+use serenity::{builder::CreateEmbed, utils::Colour};
 
-use super::player::Stats;
+use super::attributes::Attribute;
+
+use super::player::stats::{Stats};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum BaseEffect {
@@ -35,81 +37,6 @@ pub struct BaseHealthEffect {
 pub struct BaseStatEffect {
     pub name: Attribute,
     pub potency: i16,
-}
-
-#[derive(Hash, Eq, PartialEq, Serialize, Deserialize, Clone, Debug)]
-pub enum Attribute {
-    Charisma,
-    Strength,
-    Wisdom,
-    Agility,
-}
-
-impl Attribute {
-    pub const VALUES: [Attribute; 4] = [
-        Attribute::Charisma,
-        Attribute::Strength,
-        Attribute::Wisdom,
-        Attribute::Agility,
-    ];
-}
-
-impl Display for Attribute {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Attribute::Charisma => write!(f, "Charisma"),
-            Attribute::Strength => write!(f, "Strength"),
-            Attribute::Wisdom => write!(f, "Wisdom"),
-            Attribute::Agility => write!(f, "Agility"),
-        }
-    }
-}
-
-impl From<Attribute> for String {
-    fn from(value: Attribute) -> Self {
-        match value {
-            Attribute::Charisma => "Charisma".to_string(),
-            Attribute::Strength => "Strength".to_string(),
-            Attribute::Wisdom => "Wisdom".to_string(),
-            Attribute::Agility => "Agility".to_string(),
-        }
-    }
-}
-
-impl TryFrom<String> for Attribute {
-    type Error = Error;
-    fn try_from(key: String) -> Result<Attribute, Error> {
-        match key.as_str() {
-            "Charisma" | "charisma" => Ok(Attribute::Charisma),
-            "Strength" | "strength" => Ok(Attribute::Strength),
-            "Agility" | "agility" => Ok(Attribute::Agility),
-            "Wisdom" | "wisdom" => Ok(Attribute::Wisdom),
-            _ => Err(Error::Other("Not a key m8")),
-        }
-    }
-}
-
-impl TryFrom<&str> for Attribute {
-    type Error = Error;
-    fn try_from(key: &str) -> Result<Attribute, Error> {
-        match key {
-            "Charisma" | "charisma" => Ok(Attribute::Charisma),
-            "Strength" | "strength" => Ok(Attribute::Strength),
-            "Agility" | "agility" => Ok(Attribute::Agility),
-            "Wisdom" | "wisdom" => Ok(Attribute::Wisdom),
-            _ => Err(Error::Other("Not a key m8")),
-        }
-    }
-}
-
-pub fn map_attribute_name(potential_attribute_name: &str) -> Option<Attribute> {
-    match potential_attribute_name {
-        "Charisma" | "charisma" => Some(Attribute::Charisma),
-        "Strength" | "strength" => Some(Attribute::Strength),
-        "Agility" | "agility" => Some(Attribute::Agility),
-        "Wisdom" | "wisdom" => Some(Attribute::Wisdom),
-        _ => None,
-    }
 }
 
 #[derive(PartialEq, Serialize, Deserialize, Clone, Debug)]

@@ -4,14 +4,8 @@ mod errors;
 mod storage;
 mod utilities;
 mod voice;
-
-use dotenv::dotenv;
-use std::env;
-
 use commands::{add::ADD_COMMAND, ping::PING_COMMAND, play::PLAY_COMMAND, zumbor::ZUMBOR_COMMAND};
-
-// Import the `Context` to handle commands.
-
+use dotenv::dotenv;
 use serenity::framework::standard::macros::group;
 use serenity::framework::StandardFramework;
 use serenity::prelude::GatewayIntents;
@@ -20,9 +14,8 @@ use serenity::{
     model::prelude::UserId,
     prelude::TypeMapKey,
 };
-
 use songbird::serenity::SerenityInit;
-
+use std::env;
 use storage::StorageClient;
 
 #[group]
@@ -65,7 +58,6 @@ async fn main() {
         let storage_client = StorageClient::new(bucket_name).await;
 
         // add_stereo_meta_information(&storage_client).await;
-
         data.insert::<StorageClient>(storage_client);
     }
 
