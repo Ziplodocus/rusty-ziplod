@@ -1554,6 +1554,7 @@ dependencies = [
  "cloud-storage",
  "derive_builder",
  "dotenv",
+ "futures-util",
  "openssl",
  "rand",
  "reqwest",

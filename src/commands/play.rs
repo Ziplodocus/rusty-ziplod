@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
+    futures::Stream,
     model::prelude::{ChannelId, GuildChannel, GuildId, Message},
     prelude::Context,
 };
@@ -123,7 +124,7 @@ async fn fetch_track<'a>(
     ctx: &Context,
     track_type: &str,
     track_num: u32,
-) -> Result<(Vec<u8>, Option<bool>), Error> {
+) -> Result<(impl Stream<Item = Option<u8>> + Unpin, Option<bool>), Error> {
     let data = ctx.data.read().await;
     let storage_client = data
         .get::<StorageClient>()
@@ -131,15 +132,15 @@ async fn fetch_track<'a>(
     println!("Fetching {track_type} {track_num}");
     let file_name: Arc<str> = format!("tracks/{track_type}/{track_num}.mp3").into();
 
-    let file = storage_client.get(&file_name.clone()).await?;
+    let file_stream = storage_client.get_stream(&file_name.clone()).await?;
     let is_stereo = storage_client.is_stereo(&file_name.clone()).await?;
 
-    Ok((file, is_stereo))
+    Ok((file_stream, is_stereo))
 }
 
 async fn play_audio_in_channel(
     ctx: &Context,
-    audio_stream: Vec<u8>,
+    audio_stream: impl Stream<Item = Option<u8>> + Unpin,
     channel: ChannelId,
     guild: GuildId,
     is_stereo: bool,

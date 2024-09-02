@@ -1,3 +1,4 @@
+use futures_util::Stream;
 use serenity::{
     model::prelude::{ChannelId, GuildId},
     prelude::Context,
@@ -48,7 +49,7 @@ pub async fn play(
     ctx: &Context,
     channel_id: ChannelId,
     guild_id: GuildId,
-    file_stream: Vec<u8>,
+    file_stream: impl Stream<Item = Option<u8>> + Unpin,
     is_stereo: bool,
 ) -> Result<(), Error> {
     let manager = songbird::get(ctx)
@@ -56,7 +57,7 @@ pub async fn play(
         .expect("Songbird Voice client placed in at initialisation.")
         .clone();
 
-    let (ffmpeg, _writer_handle) = audio_conversion::convert(file_stream.into(), "f32le")?;
+    let ffmpeg = audio_conversion::convert(file_stream, "f32le")?;
 
     let source = Input::new(
         is_stereo,
@@ -69,6 +70,7 @@ pub async fn play(
     let maybe_handler = manager.join(guild_id, channel_id).await;
     let handler_lock = maybe_handler.0;
     let mut handler = handler_lock.lock().await;
+    handler.stop();
     println!("Reading/Playing output of conversion...");
     handler.play_source(source);
 

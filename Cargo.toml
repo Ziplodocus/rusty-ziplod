@@ -22,6 +22,7 @@ dotenv = "0.15.0"
 reqwest = "0.11.20"
 bytes = "1.5.0"
 rustls = "0.21.9"
+futures-util = "0.3.30"
 
 [dependencies.serenity]
 version = "0.11"

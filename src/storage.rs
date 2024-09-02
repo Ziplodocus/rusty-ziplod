@@ -1,14 +1,14 @@
-
 use crate::errors::Error;
 
 use bytes::Bytes;
 use cloud_storage::{Client, ListRequest, Object};
+use futures_util::{Stream, StreamExt, TryStreamExt};
 use rand::seq::SliceRandom;
 use serde::Deserialize;
-use serenity::{
-    futures::{Stream, StreamExt},
-    prelude::TypeMapKey,
-};
+use serenity::prelude::TypeMapKey;
+use tokio::fs::File;
+use tokio::io::{AsyncWriteExt, BufWriter};
+use tokio::stream;
 
 #[derive(Debug)]
 pub struct StorageClient {
@@ -37,21 +37,22 @@ impl StorageClient {
             })
     }
 
-    pub async fn get_stream(
-        &self,
-        path: &str,
-    ) -> Result<impl Stream<Item = Result<u8, cloud_storage::Error>> + Unpin, Error> {
+    pub async fn get_stream(&self, path: &str) -> Result<impl Stream<Item = Option<u8>>, Error> {
         let object = self.client.object();
-        let maybe_obj = object.download_streamed(&self.bucket_name, path);
-        println!("Streaming object.");
-        maybe_obj.await.map_err(|o| o.into())
+        let stream = object
+            .download_streamed(&self.bucket_name, path)
+            .await
+            .map_err(|err| -> Error { err.into() })?;
+
+        Ok(stream.map(|item| item.ok()))
     }
 
     pub async fn get(&self, path: &str) -> Result<Vec<u8>, Error> {
         let object = self.client.object();
-        let maybe_obj = object.download(&self.bucket_name, path).await;
-        println!("Downloaded object.");
-        maybe_obj.map_err(|o| o.into())
+        object
+            .download(&self.bucket_name, path)
+            .await
+            .map_err(|o| o.into())
     }
 
     pub async fn is_stereo(&self, path: &str) -> Result<Option<bool>, Error> {
