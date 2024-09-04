@@ -95,9 +95,8 @@ pub async fn play(
         println!("Started playing...");
     }
 
-    // Spawn an async task to read from the stream and send data to the blocking thread
+    // Now the source is passed to the audio gateway, we can start writing the stream through to ffmpeg through to songbird via some buffering
     let mut buffer = Vec::with_capacity(4096);
-
     while let Some(byte) = file_stream.next().await {
         buffer.push(byte.unwrap());
 
@@ -107,7 +106,6 @@ pub async fn play(
         }
     }
 
-    // Send any remaining bytes in the buffer
     if !buffer.is_empty() {
         stdin.write_all(&buffer)?;
     }
