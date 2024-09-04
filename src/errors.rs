@@ -1,6 +1,4 @@
-
 use serenity::framework::standard::CommandError;
-
 
 #[derive(Debug)]
 pub enum Error {
@@ -9,7 +7,7 @@ pub enum Error {
     Json(serde_json::Error),
     Cloud(cloud_storage::Error),
     Io(std::io::Error),
-    Reqwest(reqwest::Error)
+    Reqwest(reqwest::Error),
 }
 
 impl std::fmt::Display for Error {
@@ -20,7 +18,7 @@ impl std::fmt::Display for Error {
             Error::Json(err) => write!(f, "{:?}", err),
             Error::Cloud(err) => write!(f, "{:?}", err),
             Error::Io(err) => write!(f, "{:?}", err),
-            Error::Reqwest(err) => write!(f, "{:?}", err)
+            Error::Reqwest(err) => write!(f, "{:?}", err),
         }
     }
 }
@@ -45,6 +43,7 @@ impl From<std::io::Error> for Error {
         Error::Io(value)
     }
 }
+
 impl From<reqwest::Error> for Error {
     fn from(value: reqwest::Error) -> Self {
         Error::Reqwest(value)

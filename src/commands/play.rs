@@ -124,7 +124,7 @@ async fn fetch_track<'a>(
     ctx: &Context,
     track_type: &str,
     track_num: u32,
-) -> Result<(impl Stream<Item = Option<u8>> + Unpin, Option<bool>), Error> {
+) -> Result<(impl Stream<Item = Result<u8, Error>> + Unpin, Option<bool>), Error> {
     let data = ctx.data.read().await;
     let storage_client = data
         .get::<StorageClient>()
@@ -140,7 +140,7 @@ async fn fetch_track<'a>(
 
 async fn play_audio_in_channel(
     ctx: &Context,
-    audio_stream: impl Stream<Item = Option<u8>> + Unpin,
+    audio_stream: impl Stream<Item = Result<u8, Error>> + Unpin,
     channel: ChannelId,
     guild: GuildId,
     is_stereo: bool,

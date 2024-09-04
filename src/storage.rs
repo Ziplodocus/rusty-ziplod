@@ -6,9 +6,6 @@ use futures_util::{Stream, StreamExt, TryStreamExt};
 use rand::seq::SliceRandom;
 use serde::Deserialize;
 use serenity::prelude::TypeMapKey;
-use tokio::fs::File;
-use tokio::io::{AsyncWriteExt, BufWriter};
-use tokio::stream;
 
 #[derive(Debug)]
 pub struct StorageClient {
@@ -37,14 +34,18 @@ impl StorageClient {
             })
     }
 
-    pub async fn get_stream(&self, path: &str) -> Result<impl Stream<Item = Option<u8>>, Error> {
+    pub async fn get_stream(
+        &self,
+        path: &str,
+    ) -> Result<impl Stream<Item = Result<u8, Error>>, Error> {
         let object = self.client.object();
         let stream = object
             .download_streamed(&self.bucket_name, path)
             .await
-            .map_err(|err| -> Error { err.into() })?;
+            .map_err(|err| -> Error { err.into() })?
+            .map_err(|err| -> Error { err.into() });
 
-        Ok(stream.map(|item| item.ok()))
+        Ok(stream)
     }
 
     pub async fn get(&self, path: &str) -> Result<Vec<u8>, Error> {

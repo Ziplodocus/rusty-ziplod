@@ -1564,6 +1564,7 @@ dependencies = [
  "serenity",
  "songbird",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-futures",
  "tracing-subscriber",

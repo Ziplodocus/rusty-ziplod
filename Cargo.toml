@@ -23,6 +23,7 @@ reqwest = "0.11.20"
 bytes = "1.5.0"
 rustls = "0.21.9"
 futures-util = "0.3.30"
+tokio-util = "0.7.11"
 
 [dependencies.serenity]
 version = "0.11"

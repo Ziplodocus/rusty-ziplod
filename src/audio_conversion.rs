@@ -1,89 +1,15 @@
-use futures_util::{AsyncBufRead, Stream, StreamExt};
+use futures_util::StreamExt;
 use serde_json::{Map, Value};
 use std::{
-    borrow::Cow,
-    future::Future,
-    io::{BufReader, BufWriter, Write},
+    io::{BufReader, Write},
     process::{Child, Command, Stdio},
     sync::Arc,
     thread::{self},
 };
-use tokio::sync::mpsc;
 
 use crate::errors::Error;
 
-type ConversionDetails = (Child);
-
-pub fn convert(
-    stream: impl Stream<Item = Option<u8>> + Unpin,
-    format: &str,
-) -> Result<ConversionDetails, Error> {
-    println!("Converting the audio from mp3...");
-    let ffmpeg_args = [
-        "-v", "error", // "-f",
-        // &meta.format_name,
-        "-i", "pipe:0", "-f", format, "pipe:1",
-    ];
-
-    let mut ffmpeg = Command::new("ffmpeg")
-        .args(ffmpeg_args)
-        .stdin(Stdio::piped())
-        .stderr(Stdio::null())
-        .stdout(Stdio::piped())
-        .spawn()?;
-
-    // Ensure we have a handle to ffmpeg's stdin.
-    let stdin = ffmpeg.stdin.take().expect("Failed to open stdin");
-
-    // Wrap the stdin in a BufWriter for efficient writing
-    let mut stdin_writer = BufWriter::new(stdin);
-
-    // Create a channel to communicate between async context and thread
-    let (tx, mut rx) = mpsc::channel::<Vec<u8>>(1);
-    let stream = stream.map(|item| item.unwrap());
-
-    // Spawn a blocking thread to handle std::io operations
-    thread::spawn(move || {
-        let mut writer = BufWriter::new(stdin);
-
-        while let Some(buffer) = rx.blocking_recv() {
-            if writer.write_all(&buffer).is_err() {
-                eprintln!("Failed to write to stdin of ffmpeg.");
-                break;
-            }
-        }
-
-        writer.flush().unwrap();
-    });
-
-    // Spawn an async task to read from the stream and send data to the blocking thread
-    tokio::task::spawn(async move {
-        let mut buffer = Vec::with_capacity(1024);
-
-        while let Some(byte) = stream.next().await {
-            buffer.push(byte);
-            if buffer.len() >= 1024 {
-                // Send buffer to the blocking thread
-                if tx.send(buffer).await.is_err() {
-                    eprintln!("Receiver dropped");
-                    return;
-                }
-                buffer = Vec::with_capacity(1024);
-            }
-        }
-
-        // Send any remaining bytes in the buffer
-        if !buffer.is_empty() {
-            let _ = tx.send(buffer).await;
-        }
-
-        // Signal the end of the stream
-        let _ = tx.send(buffer).await;
-    });
-
-    // Return the ffmpeg child process handle
-    Ok(ffmpeg)
-}
+type ConversionDetails = Child;
 
 pub fn get_meta(stream: Arc<[u8]>) -> Result<AudioMeta, Error> {
     println!("Getting the audio meta");
