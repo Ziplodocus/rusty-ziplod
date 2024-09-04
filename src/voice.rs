@@ -96,12 +96,12 @@ pub async fn play(
     }
 
     // Spawn an async task to read from the stream and send data to the blocking thread
-    let mut buffer = Vec::with_capacity(1024);
+    let mut buffer = Vec::with_capacity(4096);
 
     while let Some(byte) = file_stream.next().await {
         buffer.push(byte.unwrap());
 
-        if buffer.len() >= 1024 {
+        if buffer.len() >= 4096 {
             stdin.write_all(&buffer)?;
             buffer.clear();
         }
