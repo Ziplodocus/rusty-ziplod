@@ -96,11 +96,11 @@ pub async fn play(
     }
 
     // Now the source is passed to the audio gateway, we can start writing the stream through to ffmpeg through to songbird via some buffering
-    let mut buffer = Vec::with_capacity(4096);
+    let mut buffer = Vec::with_capacity(1024);
     while let Some(byte) = file_stream.next().await {
         buffer.push(byte.unwrap());
 
-        if buffer.len() >= 4096 {
+        if buffer.len() >= 1024 {
             stdin.write_all(&buffer)?;
             buffer.clear();
         }

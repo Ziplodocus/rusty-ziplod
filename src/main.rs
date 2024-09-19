@@ -49,7 +49,7 @@ async fn main() {
         .await
         .expect("Couldn't create new client!");
 
-    println!("Client creatd!");
+    println!("Client created!");
 
     {
         // Make the storage client available to the context
@@ -59,11 +59,8 @@ async fn main() {
 
         // add_stereo_meta_information(&storage_client).await;
         data.insert::<StorageClient>(storage_client);
-    }
 
-    {
         // Create a global list of the running zumbor instances to prevent user from running more than one at once
-        let mut data = client.data.write().await;
         data.insert::<ZumborInstances>(ZumborInstances::default())
     }
 
