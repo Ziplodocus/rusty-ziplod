@@ -1,4 +1,5 @@
 use serenity::{
+    all::GuildId,
     builder::CreateEmbed,
     model::prelude::{ChannelType, Guild, GuildChannel, Member, Message},
     prelude::Context,
@@ -9,7 +10,7 @@ use crate::errors::Error;
 pub async fn resolve_voice_channel(ctx: &Context, msg: &Message) -> Result<GuildChannel, Error> {
     let user = msg.mentions.first().unwrap_or(&msg.author);
     let guild = msg
-        .guild(ctx)
+        .guild_id
         .expect("Command to be called in a guild channel");
 
     let maybe_member = guild.member(ctx, user).await;
@@ -17,12 +18,12 @@ pub async fn resolve_voice_channel(ctx: &Context, msg: &Message) -> Result<Guild
     let member = maybe_member
         .map_err(|_| Error::Plain("You can't mention someone not in the guild you fool."))?;
 
-    fetch_voice_channel(ctx, &guild, &member).await
+    fetch_voice_channel(ctx, guild, &member).await
 }
 
 pub async fn fetch_voice_channel(
     ctx: &Context,
-    guild: &Guild,
+    guild: GuildId,
     member: &Member,
 ) -> Result<GuildChannel, Error> {
     let channels = guild.channels(ctx).await.expect("Guild is available");
@@ -34,7 +35,6 @@ pub async fn fetch_voice_channel(
 
         let members = channel
             .members(ctx)
-            .await
             .expect("A voice channel has the concept of members");
 
         if members
@@ -50,10 +50,13 @@ pub async fn fetch_voice_channel(
 
 pub fn quick_embed(title: String, description: Option<String>) -> CreateEmbed {
     let mut embed = CreateEmbed::default();
-    embed.title(title);
-    if let Some(description) = description {
-        embed.description(description);
-    }
+    embed = embed.title(title);
+
+    embed = if let Some(description) = description {
+        embed.description(description)
+    } else {
+        embed
+    };
 
     embed
 }

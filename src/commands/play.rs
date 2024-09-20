@@ -20,7 +20,7 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
     let maybe_voice_channel = message::resolve_voice_channel(ctx, msg).await;
 
     if let Err(err) = maybe_voice_channel {
-        msg.reply(ctx, err).await?;
+        msg.reply(ctx, err.to_string()).await?;
         return Ok(());
     }
 
@@ -82,7 +82,7 @@ async fn play_track<'a>(
 
     if is_stereo.is_none() {
         return Err(Error::Plain(
-            "File doesn't have stero meta data associated with it!",
+            "File doesn't have stereo meta data associated with it!",
         ));
     }
 
@@ -103,6 +103,7 @@ async fn play_track<'a>(
         println!("{o}");
         o
     })?;
+
     Ok(())
 }
 
@@ -132,10 +133,10 @@ async fn fetch_track<'a>(
     println!("Fetching {track_type} {track_num}");
     let file_name: Arc<str> = format!("tracks/{track_type}/{track_num}.mp3").into();
 
-    let file_stream = storage_client.get_stream(&file_name.clone()).await?;
-    let is_stereo = storage_client.is_stereo(&file_name.clone()).await?;
-
-    Ok((file_stream, is_stereo))
+    tokio::try_join!(
+        storage_client.get_stream(&file_name),
+        storage_client.is_stereo(&file_name)
+    )
 }
 
 async fn play_audio_in_channel(

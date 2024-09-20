@@ -5,10 +5,8 @@ use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use serenity::{
-    builder::{CreateComponents, CreateEmbed},
-    model::prelude::component::ButtonStyle,
+    all::{Colour, CreateActionRow, CreateButton, CreateEmbed},
     prelude::Context,
-    utils::Colour,
 };
 
 use crate::StorageClient;
@@ -16,7 +14,7 @@ use crate::StorageClient;
 use super::{
     attributes::Attribute,
     effects::{
-        BaseEffect, BaseHealthEffect, BaseStatEffect, LingeringEffect, LingeringEffectName,
+        BaseAttributeEffect, BaseEffect, BaseHealthEffect, LingeringEffect, LingeringEffectName,
         LingeringEffectType,
     },
     player::RollResult,
@@ -38,29 +36,21 @@ impl Encounter {
 
 impl From<&Encounter> for CreateEmbed {
     fn from(enc: &Encounter) -> CreateEmbed {
-        let mut embed = CreateEmbed::default();
-        embed
+        CreateEmbed::default()
             .title(&enc.title)
             .description(&enc.text)
-            .color(enc.color.unwrap_or_default());
-        embed
+            .color(enc.color.unwrap_or_default())
     }
 }
 
-impl From<&Encounter> for CreateComponents {
-    fn from(enc: &Encounter) -> CreateComponents {
-        let mut components = CreateComponents::default();
-        components.create_action_row(|row| {
-            enc.options.iter().for_each(|(label, _)| {
-                row.create_button(|but| {
-                    but.custom_id(label)
-                        .label(label)
-                        .style(ButtonStyle::Primary)
-                });
-            });
-            row
-        });
-        components
+impl From<&Encounter> for CreateActionRow {
+    fn from(enc: &Encounter) -> CreateActionRow {
+        CreateActionRow::Buttons(
+            enc.options
+                .iter()
+                .map(|(key, _)| CreateButton::new(key).label(key))
+                .collect(),
+        )
     }
 }
 
@@ -74,7 +64,7 @@ impl TryFrom<Value> for Encounter {
             for (key, value) in options_map {
                 let success_result = if let Value::Object(res) = value["Success"].clone() {
                     EncounterResult {
-                        kind: EncounterResultName::Success(
+                        kind: EncounterResultKind::Success(
                             res["type"].as_str().unwrap().to_string(),
                         ),
                         title: res["title"].as_str().unwrap().into(),
@@ -88,7 +78,7 @@ impl TryFrom<Value> for Encounter {
 
                 let fail_result = if let Value::Object(res) = value["Fail"].clone() {
                     EncounterResult {
-                        kind: EncounterResultName::Fail(res["type"].as_str().unwrap().to_string()),
+                        kind: EncounterResultKind::Fail(res["type"].as_str().unwrap().to_string()),
                         title: res["title"].as_str().unwrap().into(),
                         text: res["text"].as_str().unwrap().into(),
                         base_effect: json_base_effect_to_struct(res.clone()),
@@ -152,7 +142,7 @@ impl EncounterOption {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct EncounterResult {
     #[serde(alias = "type")]
-    pub kind: EncounterResultName,
+    pub kind: EncounterResultKind,
     pub title: String,
     pub text: String,
     pub base_effect: Option<BaseEffect>,
@@ -161,33 +151,31 @@ pub struct EncounterResult {
 
 impl From<&EncounterResult> for CreateEmbed {
     fn from(result: &EncounterResult) -> CreateEmbed {
-        let mut embed = CreateEmbed::default();
-
-        embed
+        let embed = CreateEmbed::default()
             .title(&result.title)
             .description(&result.text)
             .colour(match &result.kind {
-                EncounterResultName::Success(_) => Colour::from((20, 240, 60)),
-                EncounterResultName::Fail(_) => Colour::from((240, 40, 20)),
+                EncounterResultKind::Success(_) => Colour::from((20, 240, 60)),
+                EncounterResultKind::Fail(_) => Colour::from((240, 40, 20)),
             });
 
         if let Some(effect) = &result.base_effect {
             match effect {
-                BaseEffect::Stat(eff) => {
-                    embed.field(&eff.name, eff.potency, true);
+                BaseEffect::Attribute(effect) => {
+                    embed.field(effect.name.clone(), effect.potency.to_string(), true)
                 }
-                BaseEffect::Health(eff) => {
-                    embed.field("Health", eff.potency, true);
+                BaseEffect::Health(effect) => {
+                    embed.field("Health", effect.potency.to_string(), true)
                 }
             }
+        } else {
+            embed
         }
-
-        embed
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum EncounterResultName {
+pub enum EncounterResultKind {
     Success(String),
     Fail(String),
 }
@@ -267,7 +255,7 @@ fn json_base_effect_to_struct(map: Map<String, Value>) -> Option<BaseEffect> {
                 .expect("Name to be a string")
                 .try_into()
                 .map(|name| {
-                    BaseEffect::Stat(BaseStatEffect {
+                    BaseEffect::Attribute(BaseAttributeEffect {
                         name,
                         potency: effect["potency"].as_i64().unwrap().try_into().unwrap(),
                     })

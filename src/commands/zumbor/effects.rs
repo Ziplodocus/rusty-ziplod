@@ -1,28 +1,29 @@
 use std::fmt::{self, Display};
 
 use serde::{Deserialize, Serialize};
-use serenity::{builder::CreateEmbed, utils::Colour};
+use serenity::all::Colour;
+use serenity::builder::CreateEmbed;
 
 use super::attributes::Attribute;
 
-use super::player::stats::{Stats};
+use super::player::stats::Stats;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum BaseEffect {
-    Stat(BaseStatEffect),
+    Attribute(BaseAttributeEffect),
     Health(BaseHealthEffect),
 }
 
 impl BaseEffect {
     pub fn get_potency(&self) -> i16 {
         match self {
-            BaseEffect::Stat(eff) => eff.potency,
+            BaseEffect::Attribute(eff) => eff.potency,
             BaseEffect::Health(eff) => eff.potency,
         }
     }
     pub fn set_potency(&mut self, potency: i16) {
         match self {
-            BaseEffect::Stat(eff) => eff.potency = potency,
+            BaseEffect::Attribute(eff) => eff.potency = potency,
             BaseEffect::Health(eff) => eff.potency = potency,
         }
     }
@@ -34,7 +35,7 @@ pub struct BaseHealthEffect {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct BaseStatEffect {
+pub struct BaseAttributeEffect {
     pub name: Attribute,
     pub potency: i16,
 }
@@ -49,22 +50,11 @@ pub struct LingeringEffect {
 
 impl From<&LingeringEffect> for CreateEmbed {
     fn from(effect: &LingeringEffect) -> Self {
-        let LingeringEffect {
-            name,
-            kind,
-            potency,
-            duration,
-        } = effect;
-
-        let mut embed = CreateEmbed::default();
-
-        embed
-            .title(format!("{} {}", name, kind))
-            .colour::<Colour>(name.into())
-            .field("Potency", potency, true)
-            .field("Duration", duration, true);
-
-        embed
+        CreateEmbed::new()
+            .title(format!("{} {}", effect.name, effect.kind))
+            .colour::<Colour>((&effect.name).into())
+            .field("Potency", effect.potency.to_string(), true)
+            .field("Duration", effect.duration.to_string(), true)
     }
 }
 
@@ -138,7 +128,7 @@ pub trait Effectable {
         println!("Player affected by {:?}", effect);
         match effect {
             BaseEffect::Health(eff) => self.affect_health(eff),
-            BaseEffect::Stat(eff) => self.affect_stat(eff),
+            BaseEffect::Attribute(eff) => self.affect_stat(eff),
         }
     }
 
@@ -154,7 +144,7 @@ pub trait Effectable {
         println!("After Health: {}", self.get_health());
     }
 
-    fn affect_stat(&mut self, effect: &BaseStatEffect) {
+    fn affect_stat(&mut self, effect: &BaseAttributeEffect) {
         let mut stats = self.get_stats();
         let stat = stats.get_mut(effect.name.clone());
         *stat += effect.potency;
@@ -165,7 +155,7 @@ pub trait Effectable {
         let mut effects = self.get_effects();
 
         if let LingeringEffectName::Stat(attr) = &effect.name {
-            self.affect_stat(&BaseStatEffect {
+            self.affect_stat(&BaseAttributeEffect {
                 name: attr.clone(),
                 potency: effect.potency,
             });
@@ -184,7 +174,7 @@ pub trait Effectable {
                 LingeringEffectType::Buff => -effect.potency,
                 LingeringEffectType::Debuff => effect.potency,
             };
-            self.affect_stat(&BaseStatEffect {
+            self.affect_stat(&BaseAttributeEffect {
                 name: name.clone(),
                 potency,
             })

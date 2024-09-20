@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serenity::model::prelude::component::{ActionRow, ActionRowComponent};
+use serenity::all::{ActionRow, ActionRowComponent};
 
 use crate::{commands::zumbor::attributes::Attribute, errors::Error};
 
@@ -16,12 +16,12 @@ impl Stats {
         StatsBuilder::default()
     }
 
-    pub fn get(&self, key: Attribute) -> &i16 {
+    pub fn get(&self, key: Attribute) -> i16 {
         match key {
-            Attribute::Charisma => &self.charisma,
-            Attribute::Strength => &self.strength,
-            Attribute::Wisdom => &self.wisdom,
-            Attribute::Agility => &self.agility,
+            Attribute::Charisma => self.charisma,
+            Attribute::Strength => self.strength,
+            Attribute::Wisdom => self.wisdom,
+            Attribute::Agility => self.agility,
         }
     }
 
@@ -57,6 +57,7 @@ impl TryFrom<Vec<ActionRow>> for Stats {
                 _ => panic!("Field is not an input text field"),
             };
             let value = value
+                .expect("yolo")
                 .parse::<i16>()
                 .map_err(|_e| Error::Plain("Failed to parse string as i16"))?;
 

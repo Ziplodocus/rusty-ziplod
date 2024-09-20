@@ -1,6 +1,8 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use serenity::{builder::CreateEmbed, model::prelude::ChannelId, prelude::Context};
+use serenity::{
+    all::CreateEmbedAuthor, builder::CreateEmbed, model::prelude::ChannelId, prelude::Context,
+};
 use std::{cmp, sync::Arc};
 
 mod builder;
@@ -57,8 +59,6 @@ impl Player {
 
 impl From<&Player> for CreateEmbed {
     fn from(player: &Player) -> Self {
-        let mut embed = CreateEmbed::default();
-
         // Determining color of embed from players health
         let current_health: u8 = player.health.try_into().unwrap_or(255);
 
@@ -70,19 +70,17 @@ impl From<&Player> for CreateEmbed {
 
         use Attribute::{Agility, Charisma, Strength, Wisdom};
 
-        embed
-            .author(|author| author.name(&player.tag))
+        CreateEmbed::default()
+            .author(CreateEmbedAuthor::new(&player.name))
             .title(&player.name)
             .description(&player.description)
             .color(color)
-            .field("Score", player.score, true)
-            .field("Health", player.health, true)
-            .field(Charisma, player.stats.get(Charisma), true)
-            .field(Strength, player.stats.get(Strength), true)
-            .field(Wisdom, player.stats.get(Wisdom), true)
-            .field(Agility, player.stats.get(Agility), true);
-
-        embed
+            .field("Score", player.score.to_string(), true)
+            .field("Health", player.health.to_string(), true)
+            .field(Charisma, player.stats.charisma.to_string(), true)
+            .field(Strength, player.stats.strength.to_string(), true)
+            .field(Wisdom, player.stats.wisdom.to_string(), true)
+            .field(Agility, player.stats.agility.to_string(), true)
     }
 }
 
@@ -119,15 +117,16 @@ pub async fn create(
     channel: ChannelId,
 ) -> Result<Player, Error> {
     let message = builder::prompt_character_creation_start(channel, context).await?;
-    let interaction = await_interactions::component(&message, context, user_tag.clone()).await?;
+    let interaction = await_interactions::component(context, &message, user_tag.clone()).await?;
     builder::prompt_with_character_details_modal(interaction, context).await?;
-    let interaction = await_interactions::modal(&message, context, user_tag.clone()).await?;
-    let details_data = &interaction.data.components;
+    let interaction = await_interactions::modal(context, &message, user_tag.clone()).await?;
 
-    builder::prompt_for_player_stats(interaction.clone(), context).await?;
-    let interaction = await_interactions::component(&message, context, user_tag.clone()).await?;
+    let details_data = interaction.data.components.clone();
+
+    builder::prompt_for_player_stats(interaction, context).await?;
+    let interaction = await_interactions::component(context, &message, user_tag.clone()).await?;
     builder::prompt_with_stats_modal(interaction, context).await?;
-    let interaction = await_interactions::modal(&message, context, user_tag.clone()).await?;
+    let interaction = await_interactions::modal(context, &message, user_tag.clone()).await?;
     let stats_data = interaction.data.components.clone();
 
     let mut stats: Stats = stats_data.try_into()?;
@@ -143,13 +142,13 @@ pub async fn create(
         println!("Re request stats...");
 
         let interaction =
-            await_interactions::component(&message, context, user_tag.clone()).await?;
+            await_interactions::component(context, &message, user_tag.clone()).await?;
         println!("Awaited button click...");
 
         builder::prompt_with_stats_modal(interaction, context).await?;
         println!("Sent next modal");
 
-        loop_int = await_interactions::modal(&message, context, user_tag.clone()).await?;
+        loop_int = await_interactions::modal(context, &message, user_tag.clone()).await?;
         println!("Awaited modal interaction");
 
         let stats_data = loop_int.data.components.clone();

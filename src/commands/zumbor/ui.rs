@@ -1,13 +1,14 @@
 use std::{collections::VecDeque, fmt, panic, sync::Arc, time::Duration};
 
 use serenity::{
-    builder::CreateEmbed,
-    model::prelude::{
-        interaction::message_component::MessageComponentInteraction, ChannelId, Message,
+    all::{
+        ChannelId, CreateActionRow, CreateButton, CreateMessage, EditMessage, Interaction, Message,
     },
+    builder::CreateEmbed,
     prelude::Context,
-    Error,
 };
+
+use crate::{errors::Error, utilities::await_interactions};
 
 use super::{
     encounter::{Encounter, EncounterResult},
@@ -17,7 +18,7 @@ use super::{
 pub struct UI<'a> {
     context: &'a Context,
     channel: ChannelId,
-    interaction: Option<Arc<MessageComponentInteraction>>,
+    interaction: Option<Arc<Interaction>>,
     messages: VecDeque<CreateEmbed>,
 }
 
@@ -36,32 +37,33 @@ impl UI<'_> {
         &mut self,
         encounter: &Encounter,
         player: &Player,
-    ) -> Result<(String, Message), Error> {
+    ) -> Result<(String, Message), crate::errors::Error> {
         println!("{:?}", player);
         let user_tag = player.tag.clone();
 
         let message = self
             .channel
-            .send_message(self.context, |message| {
-                message
-                    .set_embeds(vec![player.into(), encounter.into()])
-                    .set_components(encounter.into())
-            })
+            .send_message(
+                self.context,
+                CreateMessage::new()
+                    .embeds(vec![player.into(), encounter.into()])
+                    .components(vec![encounter.into()]),
+            )
             .await;
 
         match message {
             Ok(message) => {
-                self.interaction = message
-                    .await_component_interaction(self.context)
-                    .filter(move |interaction| interaction.user.tag() == user_tag)
-                    .timeout(Duration::new(120, 0))
-                    .collect_limit(1)
-                    .await;
+                self.interaction = Some(Arc::new(Interaction::Component(
+                    await_interactions::component(self.context, &message, Arc::from(user_tag))
+                        .await?,
+                )));
 
                 let choice = self
                     .interaction
                     .as_ref()
-                    .ok_or(Error::Other("Message interaction was not collected"))?
+                    .expect("Interaction has just been set!")
+                    .as_message_component()
+                    .ok_or(Error::Plain("Message interaction was not collected"))?
                     .data
                     .custom_id
                     .clone();
@@ -72,7 +74,7 @@ impl UI<'_> {
                 println!("{}", err);
                 self.say("Something went wrong sending encounter details")
                     .await;
-                Err(Error::Other("Player choice resulted in an error"))
+                Err(Error::Plain("Player choice resulted in an error"))
             }
         }
     }
@@ -86,18 +88,25 @@ impl UI<'_> {
         message.embeds.remove(0);
 
         message
-            .edit(self.context, |msg| {
-                msg.add_embed(|emb| {
-                    emb.title(format!(
-                        "{} chose to {}",
-                        player.name,
-                        self.interaction.as_ref().expect("Exists!").data.custom_id
-                    ))
-                })
-                .add_embeds(vec![result.into()])
-                .add_embeds(self.get_queued_messages().into_iter().collect())
-                .components(|comp| comp)
-            })
+            .edit(
+                self.context,
+                EditMessage::new()
+                    .add_embeds(vec![
+                        CreateEmbed::new().title(format!(
+                            "{} chose to {}",
+                            player.name,
+                            self.interaction
+                                .as_ref()
+                                .expect("Exists!")
+                                .as_message_component()
+                                .expect("It can only be a message component")
+                                .data
+                                .custom_id
+                        )),
+                        result.into(),
+                    ])
+                    .add_embeds(self.get_queued_messages().into()),
+            )
             .await?;
 
         Ok(message)
@@ -107,20 +116,14 @@ impl UI<'_> {
         println!("Requesting continue!");
         let message = self
             .channel
-            .send_message(self.context, |message| {
-                message.components(|components| {
-                    components.create_action_row(|row| {
-                        row.create_button(|button| {
-                            button
-                                .custom_id(ContinueOption::Continue)
-                                .label("Continue your journey")
-                        })
-                        .create_button(|button| {
-                            button.custom_id(ContinueOption::Rest).label("Take a break")
-                        })
-                    })
-                })
-            })
+            .send_message(
+                self.context,
+                CreateMessage::new().components(vec![CreateActionRow::Buttons(vec![
+                    CreateButton::new(ContinueOption::Continue.to_string())
+                        .label("Continue your journey"),
+                    CreateButton::new(ContinueOption::Rest.to_string()).label("Take a break"),
+                ])]),
+            )
             .await;
 
         match message {
@@ -132,9 +135,8 @@ impl UI<'_> {
                     .await_component_interaction(self.context)
                     .filter(move |interaction| interaction.user.tag() == user_tag)
                     .timeout(Duration::new(120, 0))
-                    .collect_limit(1)
                     .await
-                    .ok_or(Error::Other("Message interaction was not collected"))?;
+                    .ok_or(Error::Plain("Message interaction was not collected"))?;
 
                 tokio::spawn(async move {
                     let res = message.delete(context).await;
@@ -151,7 +153,7 @@ impl UI<'_> {
                 println!("{}", err);
                 self.say("Something went wrong retrieving the player choice")
                     .await;
-                Err(Error::Other("Player choice resulted in an error"))
+                Err(Error::Plain("Player choice resulted in an error"))
             }
         }
     }
@@ -170,8 +172,12 @@ impl UI<'_> {
     pub async fn send_messages(&mut self) -> Result<Message, Error> {
         let messages = self.get_queued_messages();
         self.channel
-            .send_message(self.context, |message| message.set_embeds(messages.into()))
+            .send_message(self.context, CreateMessage::new().embeds(messages.into()))
             .await
+            .map_err(|err| {
+                dbg!(&err);
+                Error::Serenity(err)
+            })
     }
 }
 
@@ -226,6 +232,15 @@ impl From<String> for ContinueOption {
             "continue" => ContinueOption::Continue,
             "rest" => ContinueOption::Rest,
             _ => panic!("Don't call me on strings that aren't correct"),
+        }
+    }
+}
+
+impl From<ContinueOption> for &str {
+    fn from(value: ContinueOption) -> Self {
+        match value {
+            ContinueOption::Continue => "continue",
+            ContinueOption::Rest => "rest",
         }
     }
 }

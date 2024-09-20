@@ -6,6 +6,7 @@ mod utilities;
 mod voice;
 use commands::{add::ADD_COMMAND, ping::PING_COMMAND, play::PLAY_COMMAND, zumbor::ZUMBOR_COMMAND};
 use dotenv::dotenv;
+use serenity::all::standard::Configuration;
 use serenity::framework::standard::macros::group;
 use serenity::framework::StandardFramework;
 use serenity::prelude::GatewayIntents;
@@ -38,9 +39,8 @@ async fn main() {
 
     println!("Env variables determined.");
 
-    let framework = StandardFramework::new()
-        .configure(|c| c.prefix(prefix))
-        .group(&GENERAL_GROUP);
+    let framework = StandardFramework::new().group(&GENERAL_GROUP);
+    framework.configure(Configuration::new().prefix(prefix));
 
     let mut client = Client::builder(&token, intents)
         .event_handler(Handler)
@@ -53,13 +53,11 @@ async fn main() {
 
     {
         // Make the storage client available to the context
-        let mut data = client.data.write().await;
-
-        let storage_client = StorageClient::new(bucket_name).await;
+        let (mut data, storage_client) =
+            tokio::join!(client.data.write(), StorageClient::new(bucket_name));
 
         // add_stereo_meta_information(&storage_client).await;
         data.insert::<StorageClient>(storage_client);
-
         // Create a global list of the running zumbor instances to prevent user from running more than one at once
         data.insert::<ZumborInstances>(ZumborInstances::default())
     }

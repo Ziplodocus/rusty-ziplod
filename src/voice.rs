@@ -1,14 +1,17 @@
 use futures_util::{Stream, StreamExt};
 use std::{
-    io::Write,
+    io::{BufRead, BufReader, Write},
     process::{Command, Stdio},
 };
+use symphonia::core::io::MediaSourceStream;
+use tokio::io::AsyncBufRead;
+use tokio_util::io::StreamReader;
 
 use serenity::{
     model::prelude::{ChannelId, GuildId},
     prelude::Context,
 };
-use songbird::input::{children_to_reader, Codec, Container, Input};
+use songbird::input::{AudioStream, ChildContainer, Input, LiveInput};
 
 use crate::errors::Error;
 
@@ -77,21 +80,14 @@ pub async fn play(
 
     // Ensure we have a handle to ffmpeg's stdin.
     let mut stdin = ffmpeg.stdin.take().expect("Failed to open stdin");
-
-    let source = Input::new(
-        is_stereo,
-        children_to_reader::<f32>(vec![ffmpeg]),
-        Codec::FloatPcm,
-        Container::Raw,
-        None,
-    );
+    let container = ChildContainer::new(vec![ffmpeg]);
+    let input = Input::from(container);
 
     {
-        let maybe_handler = manager.join(guild_id, channel_id).await;
-        let handler_lock = maybe_handler.0;
+        let handler_lock = manager.join(guild_id, channel_id).await?;
         let mut handler = handler_lock.lock().await;
         handler.stop();
-        handler.play_source(source);
+        handler.play_input(input);
         println!("Started playing...");
     }
 

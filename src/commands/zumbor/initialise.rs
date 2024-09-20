@@ -1,11 +1,11 @@
 use serenity::{
+    all::CreateMessage,
     builder::CreateEmbed,
     model::{
         prelude::{ChannelId, Message, UserId},
         user::User,
     },
     prelude::Context,
-    utils::Colour,
 };
 
 use crate::ZumborInstances;
@@ -70,8 +70,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         if let Some(effect) = &encounter_result.lingering_effect {
             println!("Added lingering effect: {}", effect.name);
             let mut gain_embed: CreateEmbed = effect.into();
-            gain_embed.title(format!("Received a {} {}", effect.name, effect.kind));
-            gain_embed.colour::<Colour>((&effect.name).into());
+            gain_embed = gain_embed.title(format!("Received a {} {}", effect.name, effect.kind));
             ui.queue_message(gain_embed);
             player.add_effect(effect.clone())
         }
@@ -201,9 +200,10 @@ async fn nice_message(
     description: String,
 ) -> Result<Message, Error> {
     let res = channel_id
-        .send_message(ctx, |msg| {
-            msg.embed(|emb| emb.title(title).description(description))
-        })
+        .send_message(
+            ctx,
+            CreateMessage::new().embed(CreateEmbed::new().title(title).description(description)),
+        )
         .await?;
     Ok(res)
 }
@@ -230,14 +230,8 @@ async fn remove_player_from_instance(ctx: &Context, user_id: UserId) {
     let zumbor = data.get_mut::<ZumborInstances>().unwrap();
     // Ignore if no such element is found
     println!("{:?}", zumbor.instances);
-    if zumbor
+
+    zumbor
         .instances
-        .iter()
-        .filter(|x| **x == user_id)
-        .collect::<Vec<&UserId>>()
-        .len()
-        == 1
-    {
-        zumbor.instances.remove(0);
-    }
+        .retain(|&instance_user_id| instance_user_id != user_id);
 }
