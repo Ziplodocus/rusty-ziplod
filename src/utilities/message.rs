@@ -1,7 +1,7 @@
 use serenity::{
     all::GuildId,
     builder::CreateEmbed,
-    model::prelude::{ChannelType, Guild, GuildChannel, Member, Message},
+    model::prelude::{ChannelType, GuildChannel, Member, Message},
     prelude::Context,
 };
 

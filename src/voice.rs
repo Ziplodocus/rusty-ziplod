@@ -1,17 +1,14 @@
 use futures_util::{Stream, StreamExt};
 use std::{
-    io::{BufRead, BufReader, Write},
+    io::Write,
     process::{Command, Stdio},
 };
-use symphonia::core::io::MediaSourceStream;
-use tokio::io::AsyncBufRead;
-use tokio_util::io::StreamReader;
 
 use serenity::{
     model::prelude::{ChannelId, GuildId},
     prelude::Context,
 };
-use songbird::input::{AudioStream, ChildContainer, Input, LiveInput};
+use songbird::input::{ChildContainer, Input};
 
 use crate::errors::Error;
 

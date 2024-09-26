@@ -2,13 +2,12 @@ use serenity::{
     all::{
         ActionRow, ActionRowComponent, ComponentInteraction, CreateActionRow, CreateButton,
         CreateEmbed, CreateInputText, CreateInteractionResponseMessage, CreateMessage, CreateModal,
-        InputTextStyle, Interaction, ModalInteraction,
+        InputTextStyle, ModalInteraction,
     },
     builder::CreateInteractionResponse,
     model::prelude::{ChannelId, Message},
     prelude::Context,
 };
-use std::sync::Arc;
 
 use crate::{commands::zumbor::attributes::Attribute, errors::Error};
 

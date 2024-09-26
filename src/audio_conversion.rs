@@ -1,7 +1,7 @@
 use serde_json::{Map, Value};
 use std::{
     io::{BufReader, Write},
-    process::{Child, Command, Stdio},
+    process::{Command, Stdio},
     sync::Arc,
     thread::{self},
 };
