@@ -8,8 +8,6 @@ use std::{
 
 use crate::errors::Error;
 
-type ConversionDetails = Child;
-
 pub fn get_meta(stream: Arc<[u8]>) -> Result<AudioMeta, Error> {
     println!("Getting the audio meta");
     let mut cmd = Command::new("ffprobe")

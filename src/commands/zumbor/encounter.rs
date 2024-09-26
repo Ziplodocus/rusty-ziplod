@@ -47,8 +47,8 @@ impl From<&Encounter> for CreateActionRow {
     fn from(enc: &Encounter) -> CreateActionRow {
         CreateActionRow::Buttons(
             enc.options
-                .iter()
-                .map(|(key, _)| CreateButton::new(key).label(key))
+                .keys()
+                .map(|key| CreateButton::new(key).label(key))
                 .collect(),
         )
     }

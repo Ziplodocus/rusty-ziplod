@@ -4,6 +4,7 @@ mod errors;
 mod storage;
 mod utilities;
 mod voice;
+use commands::chat::ChatBot;
 use commands::{add::ADD_COMMAND, ping::PING_COMMAND, play::PLAY_COMMAND, zumbor::ZUMBOR_COMMAND};
 use dotenv::dotenv;
 use serenity::all::standard::Configuration;
@@ -53,9 +54,15 @@ async fn main() {
 
     {
         // Make the storage client available to the context
-        let (mut data, storage_client) =
-            tokio::join!(client.data.write(), StorageClient::new(bucket_name));
+        let (mut data, storage_client, chatbot) = tokio::join!(
+            client.data.write(),
+            StorageClient::new(bucket_name),
+            ChatBot::new()
+        );
 
+        if let Ok(chatbot) = chatbot {
+            data.insert::<ChatBot>(chatbot);
+        }
         // add_stereo_meta_information(&storage_client).await;
         data.insert::<StorageClient>(storage_client);
         // Create a global list of the running zumbor instances to prevent user from running more than one at once

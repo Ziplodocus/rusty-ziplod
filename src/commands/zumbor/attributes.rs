@@ -46,10 +46,10 @@ impl From<Attribute> for String {
 impl From<Attribute> for &str {
     fn from(value: Attribute) -> Self {
         match value {
-            Attribute::Charisma => &"Charisma",
-            Attribute::Strength => &"Strength",
-            Attribute::Wisdom => &"Wisdom",
-            Attribute::Agility => &"Agility",
+            Attribute::Charisma => "Charisma",
+            Attribute::Strength => "Strength",
+            Attribute::Wisdom => "Wisdom",
+            Attribute::Agility => "Agility",
         }
     }
 }

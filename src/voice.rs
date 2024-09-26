@@ -87,16 +87,18 @@ pub async fn play(
         let handler_lock = manager.join(guild_id, channel_id).await?;
         let mut handler = handler_lock.lock().await;
         handler.stop();
-        handler.play_input(input);
+        let handler = handler.play_input(input);
         println!("Started playing...");
+        let res = handler.play();
+        println!("{:?}", res);
     }
 
     // Now the source is passed to the audio gateway, we can start writing the stream through to ffmpeg through to songbird via some buffering
-    let mut buffer = Vec::with_capacity(1024);
+    let mut buffer = Vec::with_capacity(2048);
     while let Some(byte) = file_stream.next().await {
         buffer.push(byte.unwrap());
 
-        if buffer.len() >= 1024 {
+        if buffer.len() >= 2048 {
             stdin.write_all(&buffer)?;
             buffer.clear();
         }
