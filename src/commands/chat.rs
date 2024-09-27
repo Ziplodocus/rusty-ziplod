@@ -39,5 +39,7 @@ pub async fn chat(ctx: &Context, msg: &Message) -> CommandResult {
 
     let res = msg.reply(ctx, response).await;
 
+    dbg!(res);
+
     Ok(())
 }

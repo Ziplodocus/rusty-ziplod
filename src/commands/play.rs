@@ -78,31 +78,19 @@ async fn play_track<'a>(
 ) -> Result<(), Error> {
     println!("Fetching track...");
 
-    let (track_stream, is_stereo) = fetch_track(ctx, &track_type, track_num).await?;
-
-    if is_stereo.is_none() {
-        return Err(Error::Plain(
-            "File doesn't have stereo meta data associated with it!",
-        ));
-    }
+    let track_stream = fetch_track(ctx, &track_type, track_num).await?;
 
     let guild_id = voice_channel
         .guild(ctx)
         .expect("The channel to be in a guild")
         .id;
 
-    play_audio_in_channel(
-        ctx,
-        track_stream,
-        voice_channel.id,
-        guild_id,
-        is_stereo.unwrap(),
-    )
-    .await
-    .map_err(|o| {
-        println!("{o}");
-        o
-    })?;
+    play_audio_in_channel(ctx, track_stream, voice_channel.id, guild_id)
+        .await
+        .map_err(|o| {
+            println!("{o}");
+            o
+        })?;
 
     Ok(())
 }
@@ -125,18 +113,15 @@ async fn fetch_track<'a>(
     ctx: &Context,
     track_type: &str,
     track_num: u32,
-) -> Result<(impl Stream<Item = Result<u8, Error>> + Unpin, Option<bool>), Error> {
+) -> Result<impl Stream<Item = Result<u8, Error>> + Unpin, Error> {
     let data = ctx.data.read().await;
     let storage_client = data
         .get::<StorageClient>()
         .expect("Storage client is available in the context");
     println!("Fetching {track_type} {track_num}");
-    let file_name: Arc<str> = format!("tracks/{track_type}/{track_num}.mp3").into();
+    let file_name = format!("tracks/{track_type}/{track_num}.mp3");
 
-    tokio::try_join!(
-        storage_client.get_stream(&file_name),
-        storage_client.is_stereo(&file_name)
-    )
+    storage_client.get_stream(&file_name).await
 }
 
 async fn play_audio_in_channel(
@@ -144,10 +129,9 @@ async fn play_audio_in_channel(
     audio_stream: impl Stream<Item = Result<u8, Error>> + Unpin,
     channel: ChannelId,
     guild: GuildId,
-    is_stereo: bool,
 ) -> Result<(), Error> {
     println!("Streaming audio to channel {channel}...");
-    voice::play(ctx, channel, guild, audio_stream, is_stereo).await?;
+    voice::play(ctx, channel, guild, audio_stream).await?;
 
     Ok(())
 }
