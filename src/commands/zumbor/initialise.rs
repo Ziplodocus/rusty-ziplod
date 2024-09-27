@@ -8,8 +8,7 @@ use serenity::{
     prelude::Context,
 };
 
-use crate::ZumborInstances;
-use crate::{errors::Error, utilities::message::quick_embed};
+use crate::{commands::zumbor::ZumborInstances, errors::Error, utilities::message::quick_embed};
 
 use super::{
     effects::Effectable,

@@ -5,7 +5,11 @@ mod storage;
 mod utilities;
 mod voice;
 use commands::chat::ChatBot;
-use commands::{add::ADD_COMMAND, ping::PING_COMMAND, play::PLAY_COMMAND, zumbor::ZUMBOR_COMMAND};
+use commands::zumbor::ZumborInstances;
+use commands::{
+    add::ADD_COMMAND, chat::CHAT_COMMAND, ping::PING_COMMAND, play::PLAY_COMMAND,
+    zumbor::ZUMBOR_COMMAND,
+};
 use dotenv::dotenv;
 use serenity::all::standard::Configuration;
 use serenity::framework::standard::macros::group;
@@ -21,7 +25,7 @@ use std::env;
 use storage::StorageClient;
 
 #[group]
-#[commands(ping, zumbor, play, add)]
+#[commands(ping, zumbor, play, add, chat)]
 struct General;
 
 struct Handler;
@@ -53,36 +57,21 @@ async fn main() {
     println!("Client created!");
 
     {
-        // Make the storage client available to the context
-        let (
-            mut data,
-            storage_client,
-            // chatbot
-        ) = tokio::join!(
+        // Make storage, chatbot & zumbor client available to the context
+        let (mut data, storage_client, chatbot) = tokio::join!(
             client.data.write(),
             StorageClient::new(bucket_name),
-            // ChatBot::new()
+            ChatBot::new()
         );
 
-        // if let Ok(chatbot) = chatbot {
-        // data.insert::<ChatBot>(chatbot);
-        // }
-        // add_stereo_meta_information(&storage_client).await;
+        if let Ok(chatbot) = chatbot {
+            data.insert::<ChatBot>(chatbot);
+        }
         data.insert::<StorageClient>(storage_client);
-        // Create a global list of the running zumbor instances to prevent user from running more than one at once
         data.insert::<ZumborInstances>(ZumborInstances::default())
     }
 
     if let Err(why) = client.start().await {
         println!("An error occurred while running the client: {:?}", why)
     }
-}
-
-#[derive(Default, Debug)]
-pub struct ZumborInstances {
-    instances: Vec<UserId>,
-}
-
-impl TypeMapKey for ZumborInstances {
-    type Value = ZumborInstances;
 }

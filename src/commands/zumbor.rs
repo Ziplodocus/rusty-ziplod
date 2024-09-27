@@ -1,7 +1,8 @@
 use serenity::{
+    all::UserId,
     framework::standard::{macros::command, CommandResult},
     model::prelude::Message,
-    prelude::Context,
+    prelude::{Context, TypeMapKey},
 };
 
 mod attributes;
@@ -20,4 +21,13 @@ pub async fn zumbor(ctx: &Context, msg: &Message) -> CommandResult {
         Err(err) => println!("{}", err),
     }
     Ok(())
+}
+
+#[derive(Default, Debug)]
+pub struct ZumborInstances {
+    instances: Vec<UserId>,
+}
+
+impl TypeMapKey for ZumborInstances {
+    type Value = ZumborInstances;
 }

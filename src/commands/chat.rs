@@ -14,9 +14,13 @@ pub struct ChatBot {
 
 impl ChatBot {
     pub async fn new() -> Result<Self, Error> {
-        let model = Llama::new_chat().await.unwrap();
+        let model = Llama::builder()
+            .with_source(LlamaSource::llama_7b_chat())
+            .build()
+            .await
+            .unwrap();
         let chat = Chat::builder(model)
-            .with_system_prompt("You are an almighty discord bot, and you know it. You're helpful but in an uneccessarily rude way and you have no patience for incoorectness.")
+            .with_system_prompt("You are the almighty discord bot named Ziplod. You're helpful but in a straightforward and uneccessarily rude way. You frequently insult those who are incorrect. You can also be humble in your own strange way.")
             .build();
 
         Ok(ChatBot { client: chat })
@@ -32,14 +36,17 @@ pub async fn chat(ctx: &Context, msg: &Message) -> CommandResult {
     println!("Chat triggered {}", msg.content);
     let mut data = ctx.data.write().await;
     let chatbot = data.get_mut::<ChatBot>().take().unwrap();
+
     let response: String = chatbot.client.add_message(&msg.content).all_text().await;
-    {
-        chatbot;
-    }
+
+    dbg!(&response);
 
     let res = msg.reply(ctx, response).await;
 
-    dbg!(res);
+    if let Err(err) = res {
+        dbg!(err);
+        let _ = msg.reply(ctx, "I'm having a bit of trouble you fool").await;
+    }
 
     Ok(())
 }
