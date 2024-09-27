@@ -1,26 +1,18 @@
 use futures_util::{Stream, StreamExt};
 use std::{
-    collections::HashMap,
-    io::{BufWriter, Read, Seek, Write},
-    process::{Command, Stdio},
-    sync::{
-        mpsc::{self, Receiver},
-        Arc,
-    },
+    io::{Read, Seek, Write},
+    sync::mpsc::{self, Receiver},
 };
 use symphonia::core::{
-    codecs::{CodecDescriptor, CodecRegistry, CodecType, DecoderOptions},
-    formats::FormatOptions,
     io::{MediaSource, MediaSourceStream, MediaSourceStreamOptions},
-    meta::MetadataOptions,
-    probe::{Hint, Probe},
+    probe::Hint,
 };
 
 use serenity::{
     model::prelude::{ChannelId, GuildId},
     prelude::Context,
 };
-use songbird::input::{AudioStream, ChildContainer, Compose, Input, LiveInput};
+use songbird::input::{AudioStream, Input, LiveInput};
 
 use crate::errors::Error;
 

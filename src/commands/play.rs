@@ -1,4 +1,3 @@
-use std::sync::Arc;
 
 use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
