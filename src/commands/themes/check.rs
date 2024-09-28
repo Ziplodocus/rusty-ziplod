@@ -7,6 +7,8 @@ pub async fn check(ctx: &Context, msg: &Message, mut args: Args) -> Result<(), E
         .get::<StorageClient>()
         .expect("Storage client is available in the context");
 
+  let user: &User = &msg.author;
+
   let intros = storage_client.get_objects(msg.message.author.tag, "intro");
   let outros = storage_client.get_objects(msg.message.author.tag, "outro");
 
