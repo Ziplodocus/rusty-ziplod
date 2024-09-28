@@ -5,3 +5,4 @@ ziplod-google-auth.json
 .env
 service-account-ziplod.json
 .google-application-credentials.json
+.Zone.Identifier
