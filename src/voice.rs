@@ -1,7 +1,10 @@
 use futures_util::{Stream, StreamExt};
 use std::{
     io::{Read, Seek, Write},
-    sync::mpsc::{self, Receiver},
+    sync::{
+        mpsc::{self, Receiver},
+        Arc, Mutex,
+    },
 };
 use symphonia::core::{
     io::{MediaSource, MediaSourceStream, MediaSourceStreamOptions},
@@ -31,7 +34,9 @@ pub async fn play(
     let (tx, rx) = mpsc::channel();
 
     let media_stream = MediaSourceStream::new(
-        Box::new(ReadableReceiver { receiver: rx }),
+        Box::new(ReadableReceiver {
+            receiver: Arc::new(Mutex::new(rx)),
+        }),
         MediaSourceStreamOptions::default(),
     );
 
@@ -81,28 +86,39 @@ pub async fn play(
 }
 
 struct ReadableReceiver {
-    receiver: Receiver<Vec<u8>>,
+    receiver: Arc<Mutex<Receiver<Vec<u8>>>>,
 }
 
 // Simply reads until the receiver has no more vecs to receive
 impl Read for ReadableReceiver {
     fn read(&mut self, mut buf: &mut [u8]) -> std::io::Result<usize> {
-        buf.write(&self.receiver.recv().map_err(|err| {
-            dbg!(err);
-            std::io::Error::other("Oh no")
-        })?)
+        buf.write(
+            &self
+                .receiver
+                .lock()
+                .map_err(|err| {
+                    dbg!(err);
+                    std::io::Error::other("Failed to get the lock")
+                })?
+                .recv()
+                .map_err(|err| {
+                    dbg!(err);
+                    dbg!("No more details?");
+                    std::io::Error::other("Oh no")
+                })?,
+        )
     }
 }
 
 // Not really sure but pretty sure that Receivers can be safely sent between threads
-unsafe impl Send for ReadableReceiver {}
+// unsafe impl Send for ReadableReceiver {}
 
-// Again, not sure, but pretty sure that Receivers are fine to go between threads
-unsafe impl Sync for ReadableReceiver {}
+// // Again, not sure, but pretty sure that Receivers are fine to go between threads
+// unsafe impl Sync for ReadableReceiver {}
 
 // Not seekable, so just leaving as a todo
 impl Seek for ReadableReceiver {
-    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+    fn seek(&mut self, _pos: std::io::SeekFrom) -> std::io::Result<u64> {
         todo!()
     }
 }

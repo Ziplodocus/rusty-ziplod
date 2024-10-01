@@ -65,7 +65,7 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
             format!("{o}")
         })?;
 
-    println!("Play command ended");
+    // println!("Play command ended");
     return Ok(());
 }
 
