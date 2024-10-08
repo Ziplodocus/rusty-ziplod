@@ -3,7 +3,7 @@ use std::{
     io::{Read, Seek, Write},
     sync::{
         mpsc::{self, Receiver},
-        Arc, Mutex,
+        Mutex,
     },
 };
 use symphonia::core::{
@@ -35,7 +35,7 @@ pub async fn play(
 
     let media_stream = MediaSourceStream::new(
         Box::new(ReadableReceiver {
-            receiver: Arc::new(Mutex::new(rx)),
+            receiver: Mutex::new(rx),
         }),
         MediaSourceStreamOptions::default(),
     );
@@ -86,7 +86,7 @@ pub async fn play(
 }
 
 struct ReadableReceiver {
-    receiver: Arc<Mutex<Receiver<Vec<u8>>>>,
+    receiver: Mutex<Receiver<Vec<u8>>>,
 }
 
 // Simply reads until the receiver has no more vecs to receive
@@ -109,12 +109,6 @@ impl Read for ReadableReceiver {
         )
     }
 }
-
-// Not really sure but pretty sure that Receivers can be safely sent between threads
-// unsafe impl Send for ReadableReceiver {}
-
-// // Again, not sure, but pretty sure that Receivers are fine to go between threads
-// unsafe impl Sync for ReadableReceiver {}
 
 // Not seekable, so just leaving as a todo
 impl Seek for ReadableReceiver {

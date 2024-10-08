@@ -47,16 +47,3 @@ pub async fn fetch_voice_channel(
 
     Err(Error::Plain("No voice channel found for that user"))
 }
-
-pub fn quick_embed(title: String, description: Option<String>) -> CreateEmbed {
-    let mut embed = CreateEmbed::default();
-    embed = embed.title(title);
-
-    embed = if let Some(description) = description {
-        embed.description(description)
-    } else {
-        embed
-    };
-
-    embed
-}

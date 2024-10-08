@@ -56,21 +56,6 @@ impl StorageClient {
             .map_err(|o| o.into())
     }
 
-    pub async fn is_stereo(&self, path: &str) -> Result<Option<bool>, Error> {
-        let obj = self.client.object().read(&self.bucket_name, path).await?;
-        match obj.metadata {
-            Some(map) => match map.get("is_stereo") {
-                Some(val) => match val.as_str() {
-                    "true" => Ok(Some(true)),
-                    "false" => Ok(Some(false)),
-                    _ => Ok(None),
-                },
-                None => Ok(None),
-            },
-            None => Ok(None),
-        }
-    }
-
     pub async fn delete_json(&self, path: &str) -> Result<(), Error> {
         self.delete(&(path.to_owned() + ".json")).await
     }
@@ -179,32 +164,32 @@ impl From<&MimeType> for &str {
     }
 }
 
-struct StorageManager<'a> {
-    client: &'a StorageClient,
-    prefix: Box<str>,
-    mime: MimeType,
-}
+// struct StorageManager<'a> {
+//     client: &'a StorageClient,
+//     prefix: Box<str>,
+//     mime: MimeType,
+// }
 
-impl StorageManager<'_> {
-    async fn get(&self, name: &str) -> Result<Vec<u8>, Error> {
-        self.client.get(self.get_full_path(name).as_str()).await
-    }
+// impl StorageManager<'_> {
+//     async fn get(&self, name: &str) -> Result<Vec<u8>, Error> {
+//         self.client.get(self.get_full_path(name).as_str()).await
+//     }
 
-    async fn create(&self, name: &str, content: Vec<u8>) -> Result<(), Error> {
-        self.client
-            .create(
-                content,
-                self.get_full_path(name).as_str(),
-                (&self.mime).into(),
-            )
-            .await
-    }
+//     async fn create(&self, name: &str, content: Vec<u8>) -> Result<(), Error> {
+//         self.client
+//             .create(
+//                 content,
+//                 self.get_full_path(name).as_str(),
+//                 (&self.mime).into(),
+//             )
+//             .await
+//     }
 
-    async fn delete(&self, name: &str) -> Result<(), Error> {
-        self.client.delete(self.get_full_path(name).as_str()).await
-    }
+//     async fn delete(&self, name: &str) -> Result<(), Error> {
+//         self.client.delete(self.get_full_path(name).as_str()).await
+//     }
 
-    fn get_full_path(&self, name: &str) -> String {
-        self.prefix.to_string() + name + (&self.mime).into()
-    }
-}
+//     fn get_full_path(&self, name: &str) -> String {
+//         self.prefix.to_string() + name + (&self.mime).into()
+//     }
+// }

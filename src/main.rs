@@ -1,4 +1,3 @@
-mod audio_conversion;
 mod commands;
 mod errors;
 mod storage;
@@ -12,10 +11,10 @@ use commands::{
 };
 use dotenv::dotenv;
 use serenity::all::standard::Configuration;
+use serenity::client::{Client, EventHandler};
 use serenity::framework::standard::macros::group;
 use serenity::framework::StandardFramework;
 use serenity::prelude::GatewayIntents;
-use serenity::client::{Client, EventHandler};
 use songbird::serenity::SerenityInit;
 use std::env;
 use storage::StorageClient;

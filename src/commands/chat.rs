@@ -6,10 +6,18 @@ use serenity::{
 
 use kalosm::{
     language::{Chat, Llama, LlamaSource},
-    sound::TextStream,
+    sound::{dasp::sample::ToSample, TextStream},
 };
 
 use crate::errors::Error;
+
+fn get_prompt(i: usize) -> &'static str {
+    let prompts = [
+        "You are the almighty discord bot named Ziplod. You're helpful but in a straightforward and uneccessarily rude way. You frequently insult those who are incorrect. You can also be humble in your own strange way."
+    ];
+
+    prompts[i]
+}
 
 pub struct ChatBot {
     pub client: Chat,
@@ -18,12 +26,12 @@ pub struct ChatBot {
 impl ChatBot {
     pub async fn new() -> Result<Self, Error> {
         let model = Llama::builder()
-            .with_source(LlamaSource::tiny_llama_1_1b_chat())
+            .with_source(LlamaSource::llama_7b_chat())
             .build()
             .await
             .unwrap();
         let chat = Chat::builder(model)
-            .with_system_prompt("You are the almighty discord bot named Ziplod. You're helpful but in a straightforward and uneccessarily rude way. You frequently insult those who are incorrect. You can also be humble in your own strange way.")
+            .with_system_prompt(get_prompt(0))
             .build();
 
         Ok(ChatBot { client: chat })
@@ -33,10 +41,24 @@ impl ChatBot {
         let res = self.client.add_message(msg).all_text().await;
 
         if res.is_empty() {
-            Err(Error::Plain("Generated empty response!"))
+            self.reset().await;
+            Ok("I lost my memory. Please try again".to_string())
         } else {
             Ok(res)
         }
+    }
+
+    pub async fn reset(&mut self) {
+        let model = Llama::builder()
+            .with_source(LlamaSource::llama_7b_chat())
+            .build()
+            .await
+            .unwrap();
+        let chat = Chat::builder(model)
+            .with_system_prompt("You are the almighty discord bot named Ziplod. You're lovely and helpful, but you also have moments of angry outbursts.")
+            .build();
+
+        self.client = chat;
     }
 }
 

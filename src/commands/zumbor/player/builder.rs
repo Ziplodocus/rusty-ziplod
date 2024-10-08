@@ -48,8 +48,10 @@ impl TryFrom<&Vec<ActionRow>> for PlayerDetails {
         })
     }
 }
+
 impl TryFrom<Vec<ActionRow>> for PlayerDetails {
     type Error = Error;
+
     fn try_from(details_data: Vec<ActionRow>) -> Result<Self, Self::Error> {
         let mut name: Option<String> = None;
         let mut description: Option<String> = None;

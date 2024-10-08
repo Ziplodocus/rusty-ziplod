@@ -31,7 +31,7 @@ git = "https://github.com/floneum/floneum"
 version = "0.3.2"
 features = [
     "full",
-    # "cuda"
+    "cuda"
 ]
 
 [dependencies.serenity]

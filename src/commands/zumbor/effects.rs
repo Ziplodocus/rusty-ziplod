@@ -42,7 +42,7 @@ pub struct BaseAttributeEffect {
 
 #[derive(PartialEq, Serialize, Deserialize, Clone, Debug)]
 pub struct LingeringEffect {
-    pub kind: LingeringEffectType,
+    pub kind: LingeringEffectKind,
     pub name: LingeringEffectName,
     pub potency: i16,
     pub duration: i16,
@@ -91,12 +91,12 @@ impl From<&LingeringEffectName> for Colour {
 }
 
 #[derive(PartialEq, Serialize, Deserialize, Clone, Debug)]
-pub enum LingeringEffectType {
+pub enum LingeringEffectKind {
     Buff,
     Debuff,
 }
 
-impl Display for LingeringEffectType {
+impl Display for LingeringEffectKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Buff => write!(f, "buff"),
@@ -105,12 +105,12 @@ impl Display for LingeringEffectType {
     }
 }
 
-impl TryFrom<&str> for LingeringEffectType {
+impl TryFrom<&str> for LingeringEffectKind {
     type Error = String;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
-            "Buff" | "buff" => Ok(LingeringEffectType::Buff),
-            "Debuff" | "debuff" => Ok(LingeringEffectType::Debuff),
+            "Buff" | "buff" => Ok(LingeringEffectKind::Buff),
+            "Debuff" | "debuff" => Ok(LingeringEffectKind::Debuff),
             _ => Err("String is not related to a lingering effect type".into()),
         }
     }
@@ -171,8 +171,8 @@ pub trait Effectable {
 
         if let LingeringEffectName::Stat(name) = &effect.name {
             let potency = match &effect.kind {
-                LingeringEffectType::Buff => -effect.potency,
-                LingeringEffectType::Debuff => effect.potency,
+                LingeringEffectKind::Buff => -effect.potency,
+                LingeringEffectKind::Debuff => effect.potency,
             };
             self.affect_stat(&BaseAttributeEffect {
                 name: name.clone(),

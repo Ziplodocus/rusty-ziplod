@@ -48,6 +48,7 @@ impl Stats {
 
 impl TryFrom<Vec<ActionRow>> for Stats {
     type Error = Error;
+
     fn try_from(stats_data: Vec<ActionRow>) -> Result<Self, Self::Error> {
         let mut create_stats = Stats::builder();
         for row in stats_data {
@@ -77,6 +78,7 @@ pub struct StatsBuilder {
     wisdom: Option<i16>,
     agility: Option<i16>,
 }
+
 impl StatsBuilder {
     pub fn set(&mut self, key: Attribute, value: i16) -> &mut StatsBuilder {
         match key {

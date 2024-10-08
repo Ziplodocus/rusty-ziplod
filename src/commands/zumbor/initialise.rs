@@ -8,7 +8,7 @@ use serenity::{
     prelude::Context,
 };
 
-use crate::{commands::zumbor::ZumborInstances, errors::Error, utilities::message::quick_embed};
+use crate::{commands::zumbor::ZumborInstances, errors::Error};
 
 use super::{
     effects::Effectable,
@@ -21,7 +21,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
     let user: &User = &msg.author;
     let channel_id = msg.channel_id;
 
-    if let Err(err) = add_player_to_instance(ctx, user.id).await {
+    if let Err(err) = add_user_instance(ctx, user.id).await {
         nice_message(
             ctx,
             channel_id,
@@ -68,24 +68,24 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
         // Handle lingering effects of the result
         if let Some(effect) = &encounter_result.lingering_effect {
             println!("Added lingering effect: {}", effect.name);
-            let mut gain_embed: CreateEmbed = effect.into();
-            gain_embed = gain_embed.title(format!("Received a {} {}", effect.name, effect.kind));
-            ui.queue_message(gain_embed);
+            let gain_embed: CreateEmbed = effect.into();
+
+            ui.queue_message(
+                gain_embed.title(format!("Received a {} {}", effect.name, effect.kind)),
+            );
+
             player.add_effect(effect.clone())
         }
 
         for effect in player.get_effects() {
             if effect.duration == 1 {
-                let end_embed = quick_embed(
-                    format!(
-                        "A potency {} {} {} has expired",
-                        effect.potency, effect.name, effect.kind
-                    ),
-                    None,
-                );
-                ui.queue_message(end_embed);
+                ui.queue_message(CreateEmbed::new().title(format!(
+                    "A potency {} {} {} has expired",
+                    effect.potency, effect.name, effect.kind
+                )));
             }
         }
+
         player.apply_effects();
         player.add_score(1);
 
@@ -105,6 +105,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             if let Err(err) = player.delete_save(ctx).await {
                 println!("Unable to delete the player save. {}", err);
             };
+
             // match scoreboard.update(player).await {
             //     Ok(did_win) => match did_win {
             //         true => ui.say("You win, you winner!"),
@@ -116,7 +117,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             //     }
             // };
 
-            remove_player_from_instance(ctx, user.id).await;
+            remove_user_instance(ctx, user.id).await;
             return Ok(true);
         }
 
@@ -126,24 +127,26 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             continue;
         };
 
-        remove_player_from_instance(ctx, user.id).await;
+        remove_user_instance(ctx, user.id).await;
 
-        ui.queue_message(quick_embed(
-            "Resting...".to_owned(),
-            Some(player.name.clone() + " takes a break"),
-        ));
+        ui.queue_message(
+            CreateEmbed::new()
+                .title("Resting...".to_owned())
+                .description(player.name.clone() + " takes a break"),
+        );
 
         match player.save(ctx).await {
-            Ok(_saved) => ui.queue_message(quick_embed("Save Succesful.".to_string(), None)),
+            Ok(_saved) => ui.queue_message(CreateEmbed::new().title("Save Succesful.")),
             Err(err) => {
                 println!("{}", err);
-                ui.queue_message(quick_embed(
-                    "Ruh Roh Wraggy...".to_string(),
-                    Some(format!(
-                        "Something went wrong while saving... Say goodbye to {}",
-                        player.name
-                    )),
-                ))
+                ui.queue_message(
+                    CreateEmbed::new()
+                        .title("Ruh Roh Wraggy...".to_string())
+                        .description(format!(
+                            "Something went wrong while saving... Say goodbye to {}",
+                            player.name
+                        )),
+                )
             }
         }
 
@@ -210,27 +213,16 @@ async fn nice_message(
 /**
  * Adds the user ID to the running instances saved into th context, returns an error if the user id exists in the intances vec already
  */
-async fn add_player_to_instance(ctx: &Context, user_id: UserId) -> Result<bool, Error> {
+async fn add_user_instance(ctx: &Context, user_id: UserId) -> Result<(), Error> {
     let mut data = ctx.data.write().await;
     let zumbor = data.get_mut::<ZumborInstances>().unwrap();
-    if zumbor.instances.contains(&user_id) {
-        Err(Error::Plain(
-            "The user currently has an active Zumbor instance",
-        ))
-    } else {
-        zumbor.instances.push(user_id);
-        println!("{:?}", zumbor.instances);
-        Ok(true)
-    }
+
+    zumbor.add(user_id)
 }
 
-async fn remove_player_from_instance(ctx: &Context, user_id: UserId) {
+async fn remove_user_instance(ctx: &Context, user_id: UserId) {
     let mut data = ctx.data.write().await;
     let zumbor = data.get_mut::<ZumborInstances>().unwrap();
-    // Ignore if no such element is found
-    println!("{:?}", zumbor.instances);
 
-    zumbor
-        .instances
-        .retain(|&instance_user_id| instance_user_id != user_id);
+    zumbor.remove(user_id);
 }
