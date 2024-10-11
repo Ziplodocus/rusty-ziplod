@@ -8,6 +8,7 @@ pub enum Error {
     Cloud(cloud_storage::Error),
     Io(std::io::Error),
     Reqwest(reqwest::Error),
+    Songbird(songbird::error::JoinError),
 }
 
 impl std::fmt::Display for Error {
@@ -19,6 +20,7 @@ impl std::fmt::Display for Error {
             Error::Cloud(err) => write!(f, "{:?}", err),
             Error::Io(err) => write!(f, "{:?}", err),
             Error::Reqwest(err) => write!(f, "{:?}", err),
+            Error::Songbird(err) => write!(f, "{:?}", err),
         }
     }
 }
@@ -47,6 +49,12 @@ impl From<std::io::Error> for Error {
 impl From<reqwest::Error> for Error {
     fn from(value: reqwest::Error) -> Self {
         Error::Reqwest(value)
+    }
+}
+
+impl From<songbird::error::JoinError> for Error {
+    fn from(value: songbird::error::JoinError) -> Self {
+        Error::Songbird(value)
     }
 }
 

@@ -5,10 +5,8 @@ use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use serenity::{
-    builder::{CreateComponents, CreateEmbed},
-    model::prelude::component::ButtonStyle,
+    all::{Colour, CreateActionRow, CreateButton, CreateEmbed},
     prelude::Context,
-    utils::Colour,
 };
 
 use crate::StorageClient;
@@ -16,8 +14,8 @@ use crate::StorageClient;
 use super::{
     attributes::Attribute,
     effects::{
-        BaseEffect, BaseHealthEffect, BaseStatEffect, LingeringEffect, LingeringEffectName,
-        LingeringEffectType,
+        BaseAttributeEffect, BaseEffect, BaseHealthEffect, LingeringEffect, LingeringEffectKind,
+        LingeringEffectName,
     },
     player::RollResult,
 };
@@ -38,29 +36,21 @@ impl Encounter {
 
 impl From<&Encounter> for CreateEmbed {
     fn from(enc: &Encounter) -> CreateEmbed {
-        let mut embed = CreateEmbed::default();
-        embed
+        CreateEmbed::default()
             .title(&enc.title)
             .description(&enc.text)
-            .color(enc.color.unwrap_or_default());
-        embed
+            .color(enc.color.unwrap_or_default())
     }
 }
 
-impl From<&Encounter> for CreateComponents {
-    fn from(enc: &Encounter) -> CreateComponents {
-        let mut components = CreateComponents::default();
-        components.create_action_row(|row| {
-            enc.options.iter().for_each(|(label, _)| {
-                row.create_button(|but| {
-                    but.custom_id(label)
-                        .label(label)
-                        .style(ButtonStyle::Primary)
-                });
-            });
-            row
-        });
-        components
+impl From<&Encounter> for CreateActionRow {
+    fn from(enc: &Encounter) -> CreateActionRow {
+        CreateActionRow::Buttons(
+            enc.options
+                .keys()
+                .map(|key| CreateButton::new(key).label(key))
+                .collect(),
+        )
     }
 }
 
@@ -74,13 +64,13 @@ impl TryFrom<Value> for Encounter {
             for (key, value) in options_map {
                 let success_result = if let Value::Object(res) = value["Success"].clone() {
                     EncounterResult {
-                        kind: EncounterResultName::Success(
+                        kind: EncounterResultKind::Success(
                             res["type"].as_str().unwrap().to_string(),
                         ),
                         title: res["title"].as_str().unwrap().into(),
                         text: res["text"].as_str().unwrap().into(),
-                        base_effect: json_base_effect_to_struct(res.clone()),
-                        lingering_effect: json_lingering_effect_to_struct(res),
+                        base_effect: res.clone().try_into().ok(),
+                        lingering_effect: res.try_into().ok(),
                     }
                 } else {
                     panic!("Success result should be an object");
@@ -88,11 +78,11 @@ impl TryFrom<Value> for Encounter {
 
                 let fail_result = if let Value::Object(res) = value["Fail"].clone() {
                     EncounterResult {
-                        kind: EncounterResultName::Fail(res["type"].as_str().unwrap().to_string()),
+                        kind: EncounterResultKind::Fail(res["type"].as_str().unwrap().to_string()),
                         title: res["title"].as_str().unwrap().into(),
                         text: res["text"].as_str().unwrap().into(),
-                        base_effect: json_base_effect_to_struct(res.clone()),
-                        lingering_effect: json_lingering_effect_to_struct(res),
+                        base_effect: res.clone().try_into().ok(),
+                        lingering_effect: res.try_into().ok(),
                     }
                 } else {
                     panic!("Success result should be an object");
@@ -152,7 +142,7 @@ impl EncounterOption {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct EncounterResult {
     #[serde(alias = "type")]
-    pub kind: EncounterResultName,
+    pub kind: EncounterResultKind,
     pub title: String,
     pub text: String,
     pub base_effect: Option<BaseEffect>,
@@ -161,33 +151,31 @@ pub struct EncounterResult {
 
 impl From<&EncounterResult> for CreateEmbed {
     fn from(result: &EncounterResult) -> CreateEmbed {
-        let mut embed = CreateEmbed::default();
-
-        embed
+        let embed = CreateEmbed::default()
             .title(&result.title)
             .description(&result.text)
             .colour(match &result.kind {
-                EncounterResultName::Success(_) => Colour::from((20, 240, 60)),
-                EncounterResultName::Fail(_) => Colour::from((240, 40, 20)),
+                EncounterResultKind::Success(_) => Colour::from((20, 240, 60)),
+                EncounterResultKind::Fail(_) => Colour::from((240, 40, 20)),
             });
 
         if let Some(effect) = &result.base_effect {
             match effect {
-                BaseEffect::Stat(eff) => {
-                    embed.field(&eff.name, eff.potency, true);
+                BaseEffect::Attribute(effect) => {
+                    embed.field(effect.name.clone(), effect.potency.to_string(), true)
                 }
-                BaseEffect::Health(eff) => {
-                    embed.field("Health", eff.potency, true);
+                BaseEffect::Health(effect) => {
+                    embed.field("Health", effect.potency.to_string(), true)
                 }
             }
+        } else {
+            embed
         }
-
-        embed
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum EncounterResultName {
+pub enum EncounterResultKind {
     Success(String),
     Fail(String),
 }
@@ -243,100 +231,125 @@ pub async fn get_random(ctx: &Context) -> Result<Encounter, Error> {
     Ok(encounter)
 }
 
+impl TryFrom<Map<String, Value>> for BaseEffect {
+    type Error = Error;
+
+    fn try_from(value: Map<String, Value>) -> Result<Self, Self::Error> {
+        let effect = value
+            .get("baseEffect")
+            .map(|val| val.as_object().expect("baseEffect to be an object"));
+
+        effect
+            .and_then(
+                |effect| match effect["name"].as_str().expect("name is a string") {
+                    "Heal" => Some(BaseEffect::Health(BaseHealthEffect {
+                        potency: effect["potency"].as_u64().unwrap().try_into().unwrap(),
+                    })),
+                    "Damage" => Some(BaseEffect::Health(BaseHealthEffect {
+                        potency: -<i64 as TryInto<i16>>::try_into(
+                            effect["potency"].as_i64().unwrap(),
+                        )
+                        .unwrap(),
+                    })),
+                    _ => effect["name"]
+                        .as_str()
+                        .expect("Name to be a string")
+                        .try_into()
+                        .map(|name| {
+                            BaseEffect::Attribute(BaseAttributeEffect {
+                                name,
+                                potency: effect["potency"].as_i64().unwrap().try_into().unwrap(),
+                            })
+                        })
+                        .map_err(|err| println!("{:?}", err))
+                        .ok(),
+                },
+            )
+            .ok_or(Error::Plain("Hmmm"))
+    }
+}
+
 fn hex_to_colour(hex: &str) -> Colour {
     let hex_str = &hex[1..];
     Colour::from(u64::from_str_radix(hex_str, 16).expect("Incorrect format"))
 }
 
-fn json_base_effect_to_struct(map: Map<String, Value>) -> Option<BaseEffect> {
-    let effect = map
-        .get("baseEffect")
-        .map(|val| val.as_object().expect("baseEffect to be an object"));
+impl TryFrom<Map<String, Value>> for LingeringEffect {
+    type Error = Error;
 
-    effect.and_then(
-        |effect| match effect["name"].as_str().expect("name is a string") {
-            "Heal" => Some(BaseEffect::Health(BaseHealthEffect {
-                potency: effect["potency"].as_u64().unwrap().try_into().unwrap(),
-            })),
-            "Damage" => Some(BaseEffect::Health(BaseHealthEffect {
-                potency: -<i64 as TryInto<i16>>::try_into(effect["potency"].as_i64().unwrap())
-                    .unwrap(),
-            })),
-            _ => effect["name"]
-                .as_str()
-                .expect("Name to be a string")
-                .try_into()
-                .map(|name| {
-                    BaseEffect::Stat(BaseStatEffect {
-                        name,
-                        potency: effect["potency"].as_i64().unwrap().try_into().unwrap(),
-                    })
-                })
-                .ok(),
-        },
-    )
-}
+    fn try_from(value: Map<String, Value>) -> Result<Self, Self::Error> {
+        let effect = value
+            .get("additionalEffect")
+            .map(|val| val.as_object().expect("additionalEffect to be an object"));
 
-fn json_lingering_effect_to_struct(map: Map<String, Value>) -> Option<LingeringEffect> {
-    let effect = map
-        .get("additionalEffect")
-        .map(|val| val.as_object().expect("additionalEffect to be an object"));
+        println!("{:?}", effect);
 
-    println!("{:?}", effect);
-
-    effect.and_then(
-        |effect| match effect["name"].as_str().expect("name is a string") {
-            "Poison" => Some(LingeringEffect {
-                kind: LingeringEffectType::Debuff,
-                name: LingeringEffectName::Poison,
-                duration: effect["duration"]
-                    .as_u64()
-                    .expect("duration to be a number")
-                    .try_into()
-                    .expect("Should be small enough to convert to a 16 bit signed integer"),
-                potency: effect["potency"]
-                    .as_u64()
-                    .expect("potency to be a number")
-                    .try_into()
-                    .expect("Should be small enough to convert to a 16 bit signed integer"),
-            }),
-            "Regenerate" => Some(LingeringEffect {
-                kind: LingeringEffectType::Debuff,
-                name: LingeringEffectName::Poison,
-                duration: effect["duration"]
-                    .as_u64()
-                    .expect("duration to be a number")
-                    .try_into()
-                    .expect("Should be small enough to convert to a 16 bit signed integer"),
-                potency: effect["potency"]
-                    .as_u64()
-                    .expect("potency to be a number")
-                    .try_into()
-                    .expect("Should be small enough to convert to a 16 bit signed integer"),
-            }),
-            _ => (effect["name"].as_str().expect("Name to be a string"))
-                .try_into()
-                .map(|name| LingeringEffect {
-                    kind: LingeringEffectType::try_from(
-                        effect["type"].as_str().expect("type to be a string"),
-                    )
-                    .unwrap_or_else(|err| {
-                        println!("Using deafult buff type. {}", err);
-                        LingeringEffectType::Buff
+        effect
+            .and_then(
+                |effect| match effect["name"].as_str().expect("name is a string") {
+                    "Poison" => Some(LingeringEffect {
+                        kind: LingeringEffectKind::Debuff,
+                        name: LingeringEffectName::Poison,
+                        duration: effect["duration"]
+                            .as_u64()
+                            .expect("duration to be a number")
+                            .try_into()
+                            .expect("Should be small enough to convert to a 16 bit signed integer"),
+                        potency: effect["potency"]
+                            .as_u64()
+                            .expect("potency to be a number")
+                            .try_into()
+                            .expect("Should be small enough to convert to a 16 bit signed integer"),
                     }),
-                    name: LingeringEffectName::Stat(name),
-                    duration: effect["duration"]
-                        .as_u64()
-                        .expect("duration to be a number")
+                    "Regenerate" => Some(LingeringEffect {
+                        kind: LingeringEffectKind::Debuff,
+                        name: LingeringEffectName::Poison,
+                        duration: effect["duration"]
+                            .as_u64()
+                            .expect("duration to be a number")
+                            .try_into()
+                            .expect("Should be small enough to convert to a 16 bit signed integer"),
+                        potency: effect["potency"]
+                            .as_u64()
+                            .expect("potency to be a number")
+                            .try_into()
+                            .expect("Should be small enough to convert to a 16 bit signed integer"),
+                    }),
+                    _ => effect["name"]
+                        .as_str()
+                        .expect("Name to be a string")
                         .try_into()
-                        .expect("Should be small enough to convert to a 16 bit signed integer"),
-                    potency: effect["potency"]
-                        .as_u64()
-                        .expect("potency to be a number")
-                        .try_into()
-                        .expect("Should be small enough to convert to a 16 bit signed integer"),
-                })
-                .ok(),
-        },
-    )
+                        .map(|name| LingeringEffect {
+                            kind: LingeringEffectKind::try_from(
+                                effect["type"].as_str().expect("type to be a string"),
+                            )
+                            .unwrap_or_else(|err| {
+                                println!("Using default buff type. {}", err);
+                                LingeringEffectKind::Buff
+                            }),
+                            name: LingeringEffectName::Stat(name),
+                            duration: effect["duration"]
+                                .as_u64()
+                                .expect("duration to be a number")
+                                .try_into()
+                                .expect(
+                                    "Should be small enough to convert to a 16 bit signed integer",
+                                ),
+                            potency: effect["potency"]
+                                .as_u64()
+                                .expect("potency to be a number")
+                                .try_into()
+                                .expect(
+                                    "Should be small enough to convert to a 16 bit signed integer",
+                                ),
+                        })
+                        .map_err(|err| {
+                            println!("{:?}", err);
+                            err
+                        })
+                        .ok(),
+                },
+            )
+            .ok_or(Error::Plain("O no"))
+    }
 }

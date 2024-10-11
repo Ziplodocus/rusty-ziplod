@@ -1,114 +1,129 @@
 use futures_util::{Stream, StreamExt};
 use std::{
-    io::Write,
-    process::{Command, Stdio},
+    io::{Read, Seek, Write},
+    sync::{
+        mpsc::{self, Receiver},
+        Mutex,
+    },
+};
+use symphonia::core::{
+    io::{MediaSource, MediaSourceStream, MediaSourceStreamOptions},
+    probe::Hint,
 };
 
 use serenity::{
     model::prelude::{ChannelId, GuildId},
     prelude::Context,
 };
-use songbird::input::{children_to_reader, Codec, Container, Input};
+use songbird::input::{AudioStream, Input, LiveInput};
 
 use crate::errors::Error;
-
-// async fn join(ctx: &Context, channel_id: ChannelId, guild_id: GuildId) -> CommandResult {
-//     let manager = songbird::get(ctx)
-//         .await
-//         .expect("Songbird Voice client placed in at initialisation.")
-//         .clone();
-
-//     let _handler = manager.join(guild_id, channel_id).await;
-
-//     Ok(())
-// }
-
-// async fn leave(ctx: &Context, msg: &Message) -> CommandResult {
-//     let guild = msg.guild(&ctx.cache).unwrap();
-//     let guild_id = guild.id;
-
-//     let manager = songbird::get(ctx)
-//         .await
-//         .expect("Songbird Voice client placed in at initialisation.")
-//         .clone();
-//     let has_handler = manager.get(guild_id).is_some();
-
-//     if has_handler {
-//         if let Err(e) = manager.remove(guild_id).await {
-//             check_msg(
-//                 msg.channel_id
-//                     .say(&ctx.http, format!("Failed: {:?}", e))
-//                     .await,
-//             );
-//         }
-
-//         check_msg(msg.channel_id.say(&ctx.http, "Left voice channel").await);
-//     } else {
-//         check_msg(msg.reply(ctx, "Not in a voice channel").await);
-//     }
-
-//     Ok(())
-// }
 
 pub async fn play(
     ctx: &Context,
     channel_id: ChannelId,
     guild_id: GuildId,
     mut file_stream: impl Stream<Item = Result<u8, Error>> + Unpin,
-    is_stereo: bool,
 ) -> Result<(), Error> {
     let manager = songbird::get(ctx)
         .await
         .expect("Songbird Voice client placed in at initialisation.")
         .clone();
 
-    let ffmpeg_args = [
-        "-v", "error", // "-f",
-        // &meta.format_name,
-        "-i", "pipe:0", "-f", "f32le", "pipe:1",
-    ];
+    // Create a channel, ReadableReceiver is a wrapper to allow passing the stream synchronously
+    let (tx, rx) = mpsc::channel();
 
-    let mut ffmpeg = Command::new("ffmpeg")
-        .args(ffmpeg_args)
-        .stdin(Stdio::piped())
-        .stderr(Stdio::null())
-        .stdout(Stdio::piped())
-        .spawn()?;
-
-    // Ensure we have a handle to ffmpeg's stdin.
-    let mut stdin = ffmpeg.stdin.take().expect("Failed to open stdin");
-
-    let source = Input::new(
-        is_stereo,
-        children_to_reader::<f32>(vec![ffmpeg]),
-        Codec::FloatPcm,
-        Container::Raw,
-        None,
+    let media_stream = MediaSourceStream::new(
+        Box::new(ReadableReceiver {
+            receiver: Mutex::new(rx),
+        }),
+        MediaSourceStreamOptions::default(),
     );
 
+    // All my audio streams are mp3s
+    let mut hint = Hint::new();
+    hint.with_extension("mp3");
+
+    let audio_stream = AudioStream {
+        input: media_stream,
+        hint: Some(hint),
+    };
+
+    let input = LiveInput::Wrapped(audio_stream);
+    let input = Input::Live(input, None);
+
     {
-        let maybe_handler = manager.join(guild_id, channel_id).await;
-        let handler_lock = maybe_handler.0;
+        let handler_lock = manager.join(guild_id, channel_id).await.unwrap();
         let mut handler = handler_lock.lock().await;
-        handler.stop();
-        handler.play_source(source);
-        println!("Started playing...");
+        handler.play_only_input(input);
     }
 
-    // Now the source is passed to the audio gateway, we can start writing the stream through to ffmpeg through to songbird via some buffering
-    let mut buffer = Vec::with_capacity(1024);
-    while let Some(byte) = file_stream.next().await {
-        buffer.push(byte.unwrap());
+    let mut buffer = Vec::with_capacity(512);
+    while let Some(Ok(byte)) = file_stream.next().await {
+        buffer.push(byte);
 
-        if buffer.len() >= 1024 {
-            stdin.write_all(&buffer)?;
-            buffer.clear();
+        if buffer.len() >= 512 {
+            let res = tx.send(buffer);
+            if let Err(err) = res {
+                dbg!(err);
+            }
+            buffer = Vec::with_capacity(512);
         }
     }
 
+    println!("Finished main writing!");
+
     if !buffer.is_empty() {
-        stdin.write_all(&buffer)?;
+        let res = tx.send(buffer);
+        if let Err(err) = res {
+            dbg!(err);
+        }
     }
 
+    println!("Finished writing!");
+
     Ok(())
+}
+
+struct ReadableReceiver {
+    receiver: Mutex<Receiver<Vec<u8>>>,
+}
+
+// Simply reads until the receiver has no more vecs to receive
+impl Read for ReadableReceiver {
+    fn read(&mut self, mut buf: &mut [u8]) -> std::io::Result<usize> {
+        buf.write(
+            &self
+                .receiver
+                .lock()
+                .map_err(|err| {
+                    dbg!(err);
+                    std::io::Error::other("Failed to get the lock")
+                })?
+                .recv()
+                .map_err(|err| {
+                    dbg!(err);
+                    dbg!("No more details?");
+                    std::io::Error::other("Oh no")
+                })?,
+        )
+    }
+}
+
+// Not seekable, so just leaving as a todo
+impl Seek for ReadableReceiver {
+    fn seek(&mut self, _pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        todo!()
+    }
+}
+
+// Length isn't known as it's reading from a network stream, nor is it seekable
+impl MediaSource for ReadableReceiver {
+    fn is_seekable(&self) -> bool {
+        false
+    }
+
+    fn byte_len(&self) -> Option<u64> {
+        None
+    }
 }

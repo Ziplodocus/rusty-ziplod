@@ -30,7 +30,7 @@ pub async fn add(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult 
         Ok(stream) => stream,
         Err(err) => {
             println!("{}", err);
-            let _ = msg.reply(ctx, err).await;
+            let _ = msg.reply(ctx, err.to_string()).await;
             return Ok(());
         }
     };

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
     futures::Stream,
@@ -20,7 +18,7 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
     let maybe_voice_channel = message::resolve_voice_channel(ctx, msg).await;
 
     if let Err(err) = maybe_voice_channel {
-        msg.reply(ctx, err).await?;
+        msg.reply(ctx, err.to_string()).await?;
         return Ok(());
     }
 
@@ -66,7 +64,7 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
             format!("{o}")
         })?;
 
-    println!("Play command ended");
+    // println!("Play command ended");
     return Ok(());
 }
 
@@ -78,31 +76,20 @@ async fn play_track<'a>(
 ) -> Result<(), Error> {
     println!("Fetching track...");
 
-    let (track_stream, is_stereo) = fetch_track(ctx, &track_type, track_num).await?;
-
-    if is_stereo.is_none() {
-        return Err(Error::Plain(
-            "File doesn't have stero meta data associated with it!",
-        ));
-    }
+    let track_stream = fetch_track(ctx, &track_type, track_num).await?;
 
     let guild_id = voice_channel
         .guild(ctx)
         .expect("The channel to be in a guild")
         .id;
 
-    play_audio_in_channel(
-        ctx,
-        track_stream,
-        voice_channel.id,
-        guild_id,
-        is_stereo.unwrap(),
-    )
-    .await
-    .map_err(|o| {
-        println!("{o}");
-        o
-    })?;
+    voice::play(ctx, voice_channel.id, guild_id, track_stream)
+        .await
+        .map_err(|o| {
+            println!("{o}");
+            o
+        })?;
+
     Ok(())
 }
 
@@ -124,29 +111,14 @@ async fn fetch_track<'a>(
     ctx: &Context,
     track_type: &str,
     track_num: u32,
-) -> Result<(impl Stream<Item = Result<u8, Error>> + Unpin, Option<bool>), Error> {
+) -> Result<impl Stream<Item = Result<u8, Error>> + Unpin, Error> {
     let data = ctx.data.read().await;
+
     let storage_client = data
         .get::<StorageClient>()
         .expect("Storage client is available in the context");
     println!("Fetching {track_type} {track_num}");
-    let file_name: Arc<str> = format!("tracks/{track_type}/{track_num}.mp3").into();
+    let file_name = format!("tracks/{track_type}/{track_num}.mp3");
 
-    let file_stream = storage_client.get_stream(&file_name.clone()).await?;
-    let is_stereo = storage_client.is_stereo(&file_name.clone()).await?;
-
-    Ok((file_stream, is_stereo))
-}
-
-async fn play_audio_in_channel(
-    ctx: &Context,
-    audio_stream: impl Stream<Item = Result<u8, Error>> + Unpin,
-    channel: ChannelId,
-    guild: GuildId,
-    is_stereo: bool,
-) -> Result<(), Error> {
-    println!("Streaming audio to channel {channel}...");
-    voice::play(ctx, channel, guild, audio_stream, is_stereo).await?;
-
-    Ok(())
+    storage_client.get_stream(&file_name).await
 }

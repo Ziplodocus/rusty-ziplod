@@ -1,25 +1,26 @@
-mod audio_conversion;
 mod commands;
 mod errors;
 mod storage;
 mod utilities;
 mod voice;
-use commands::{add::ADD_COMMAND, ping::PING_COMMAND, play::PLAY_COMMAND, zumbor::ZUMBOR_COMMAND};
+use commands::chat::ChatBot;
+use commands::zumbor::ZumborInstances;
+use commands::{
+    add::ADD_COMMAND, chat::CHAT_COMMAND, ping::PING_COMMAND, play::PLAY_COMMAND,
+    zumbor::ZUMBOR_COMMAND,
+};
 use dotenv::dotenv;
+use serenity::all::standard::Configuration;
+use serenity::client::{Client, EventHandler};
 use serenity::framework::standard::macros::group;
 use serenity::framework::StandardFramework;
 use serenity::prelude::GatewayIntents;
-use serenity::{
-    client::{Client, EventHandler},
-    model::prelude::UserId,
-    prelude::TypeMapKey,
-};
 use songbird::serenity::SerenityInit;
 use std::env;
 use storage::StorageClient;
 
 #[group]
-#[commands(ping, zumbor, play, add)]
+#[commands(ping, zumbor, play, add, chat)]
 struct General;
 
 struct Handler;
@@ -38,9 +39,8 @@ async fn main() {
 
     println!("Env variables determined.");
 
-    let framework = StandardFramework::new()
-        .configure(|c| c.prefix(prefix))
-        .group(&GENERAL_GROUP);
+    let framework = StandardFramework::new().group(&GENERAL_GROUP);
+    framework.configure(Configuration::new().prefix(prefix));
 
     let mut client = Client::builder(&token, intents)
         .event_handler(Handler)
@@ -52,28 +52,21 @@ async fn main() {
     println!("Client created!");
 
     {
-        // Make the storage client available to the context
-        let mut data = client.data.write().await;
+        // Make storage, chatbot & zumbor client available to the context
+        let (mut data, storage_client, chatbot) = tokio::join!(
+            client.data.write(),
+            StorageClient::new(bucket_name),
+            ChatBot::new()
+        );
 
-        let storage_client = StorageClient::new(bucket_name).await;
-
-        // add_stereo_meta_information(&storage_client).await;
+        if let Ok(chatbot) = chatbot {
+            data.insert::<ChatBot>(chatbot);
+        }
         data.insert::<StorageClient>(storage_client);
-
-        // Create a global list of the running zumbor instances to prevent user from running more than one at once
         data.insert::<ZumborInstances>(ZumborInstances::default())
     }
 
     if let Err(why) = client.start().await {
         println!("An error occurred while running the client: {:?}", why)
     }
-}
-
-#[derive(Default, Debug)]
-pub struct ZumborInstances {
-    instances: Vec<UserId>,
-}
-
-impl TypeMapKey for ZumborInstances {
-    type Value = ZumborInstances;
 }

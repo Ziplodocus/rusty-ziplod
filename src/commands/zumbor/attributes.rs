@@ -43,6 +43,17 @@ impl From<Attribute> for String {
     }
 }
 
+impl From<Attribute> for &str {
+    fn from(value: Attribute) -> Self {
+        match value {
+            Attribute::Charisma => "Charisma",
+            Attribute::Strength => "Strength",
+            Attribute::Wisdom => "Wisdom",
+            Attribute::Agility => "Agility",
+        }
+    }
+}
+
 impl TryFrom<String> for Attribute {
     type Error = Error;
     fn try_from(key: String) -> Result<Attribute, Error> {
