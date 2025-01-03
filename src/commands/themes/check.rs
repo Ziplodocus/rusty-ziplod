@@ -1,28 +1,45 @@
+use serenity::all::{standard::Args, Context, Message};
 
+use crate::{errors::Error, storage::StorageClient};
 
-pub async fn check(ctx: &Context, msg: &Message, mut args: Args) -> Result<(), Error> {
-  let data = ctx.data.read().await;
+use super::get_tag;
 
-  let storage_client = data
+pub async fn check(ctx: &Context, msg: &Message, mut _args: Args) -> Result<(), Error> {
+    let data = ctx.data.read().await;
+
+    let storage_client = data
         .get::<StorageClient>()
         .expect("Storage client is available in the context");
 
-  let intros = storage_client.get_objects(msg.message.author.tag, "intro");
-  let outros = storage_client.get_objects(msg.message.author.tag, "outro");
+    // dbg!(&msg.author);
 
-  let reply : String = "Here are your current themes... \nIntros:".to_string();
+    let intro_path = format!("themes/{}/intro", get_tag(&msg.author));
+    let outro_path = format!("themes/{}/outro", get_tag(&msg.author));
 
-  for let theme of intros {
-    reply += "\n\t- " theme.name;
-  }
+    let intros = storage_client.get_objects(intro_path.as_str());
+    let outros = storage_client.get_objects(outro_path.as_str());
 
-  reply += "\nOutros:";
+    let (intros, outros) = tokio::join!(async { intros.await }, async { outros.await });
 
-  for let theme of outros {
-    reply += `\n\t- ${theme}`;
-  }
+    let mut reply: String = "Here are your current themes... \nIntros:".to_string();
 
+    let intro_list: Vec<String> = intros
+        .unwrap_or(Vec::new())
+        .into_iter()
+        .map(|theme| theme.name)
+        .collect();
+    let outro_list: Vec<String> = outros
+        .unwrap_or(Vec::new())
+        .into_iter()
+        .map(|theme| theme.name)
+        .collect();
 
-  msg.message.reply(reply);
-  return msg;
-};
+    reply += "\n\t";
+    reply += intro_list.join("\n\t").as_str();
+    reply += "\nOutros:\n\t";
+    reply += outro_list.join("\n\t").as_str();
+
+    msg.reply(ctx, reply).await;
+
+    Ok(())
+}

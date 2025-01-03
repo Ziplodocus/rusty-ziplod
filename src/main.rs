@@ -6,8 +6,8 @@ mod voice;
 use commands::chat::ChatBot;
 use commands::zumbor::ZumborInstances;
 use commands::{
-    add::ADD_COMMAND, chat::CHAT_COMMAND, ping::PING_COMMAND, play::PLAY_COMMAND,
-    zumbor::ZUMBOR_COMMAND,
+    add::ADD_COMMAND, chat::CHAT_COMMAND, list::LIST_COMMAND, ping::PING_COMMAND,
+    play::PLAY_COMMAND, themes::THEME_COMMAND, zumbor::ZUMBOR_COMMAND,
 };
 use dotenv::dotenv;
 use serenity::all::standard::Configuration;
@@ -20,7 +20,7 @@ use std::env;
 use storage::StorageClient;
 
 #[group]
-#[commands(ping, zumbor, play, add, chat)]
+#[commands(ping, zumbor, play, add, chat, list, theme)]
 struct General;
 
 struct Handler;

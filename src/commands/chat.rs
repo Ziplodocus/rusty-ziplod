@@ -26,7 +26,7 @@ pub struct ChatBot {
 impl ChatBot {
     pub async fn new() -> Result<Self, Error> {
         let model = Llama::builder()
-            .with_source(LlamaSource::llama_7b_chat())
+            .with_source(LlamaSource::tiny_llama_1_1b_chat())
             .build()
             .await
             .unwrap();
@@ -68,11 +68,12 @@ impl TypeMapKey for ChatBot {
 
 #[command]
 pub async fn chat(ctx: &Context, msg: &Message) -> CommandResult {
-    println!("Chat triggered {}", msg.content);
+    let message = msg.content.replace("!chat", "");
+    println!("Chat triggered {}", message);
     let mut data = ctx.data.write().await;
     let chatbot = data.get_mut::<ChatBot>().take().unwrap();
 
-    let maybe_response = chatbot.prompt(&msg.content).await;
+    let maybe_response = chatbot.prompt(&message).await;
 
     let response = maybe_response.map_err(|err| {
         dbg!(&err);
