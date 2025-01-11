@@ -4,12 +4,6 @@ mod storage;
 mod utilities;
 mod voice;
 
-use commands::zumbor::ZumborInstances;
-use commands::{
-    add::ADD_COMMAND, ping::PING_COMMAND, play::PLAY_COMMAND,
-    zumbor::ZUMBOR_COMMAND,
-};
-
 use dotenv::dotenv;
 use serenity::all::standard::Configuration;
 use serenity::client::{Client, EventHandler};
@@ -19,6 +13,12 @@ use serenity::prelude::GatewayIntents;
 use songbird::serenity::SerenityInit;
 use std::env;
 use storage::StorageClient;
+use commands::zumbor::ZumborInstances;
+
+use commands::{
+    add::ADD_COMMAND, list::LIST_COMMAND, ping::PING_COMMAND,
+    play::PLAY_COMMAND, themes::THEME_COMMAND, zumbor::ZUMBOR_COMMAND,
+};
 
 #[cfg(chat)]
 use commands::chat::{
@@ -28,7 +28,7 @@ use commands::chat::{
 
 
 #[group]
-#[commands(ping, zumbor, play, add)]
+#[commands(ping, zumbor, play, add,list, theme)]
 struct General;
 
 #[cfg(chat)]
