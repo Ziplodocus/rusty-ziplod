@@ -1,5 +1,4 @@
 pub mod add;
-pub mod chat;
 pub mod list;
 pub mod ping;
 pub mod play;
