@@ -3,12 +3,13 @@ mod errors;
 mod storage;
 mod utilities;
 mod voice;
-use commands::chat::ChatBot;
+
 use commands::zumbor::ZumborInstances;
 use commands::{
-    add::ADD_COMMAND, chat::CHAT_COMMAND, ping::PING_COMMAND, play::PLAY_COMMAND,
+    add::ADD_COMMAND, ping::PING_COMMAND, play::PLAY_COMMAND,
     zumbor::ZUMBOR_COMMAND,
 };
+
 use dotenv::dotenv;
 use serenity::all::standard::Configuration;
 use serenity::client::{Client, EventHandler};
@@ -19,8 +20,20 @@ use songbird::serenity::SerenityInit;
 use std::env;
 use storage::StorageClient;
 
+#[cfg(chat)]
+use commands::chat::{
+    ChatBot,
+    CHAT_COMMAND
+};
+
+
 #[group]
-#[commands(ping, zumbor, play, add, chat)]
+#[commands(ping, zumbor, play, add)]
+struct General;
+
+#[cfg(chat)]
+#[group]
+#[commands(chat)]
 struct General;
 
 struct Handler;
@@ -53,15 +66,18 @@ async fn main() {
 
     {
         // Make storage, chatbot & zumbor client available to the context
-        let (mut data, storage_client, chatbot) = tokio::join!(
-            client.data.write(),
-            StorageClient::new(bucket_name),
-            ChatBot::new()
-        );
+        let (mut data, storage_client) =
+            tokio::join!(client.data.write(), StorageClient::new(bucket_name),);
 
-        if let Ok(chatbot) = chatbot {
-            data.insert::<ChatBot>(chatbot);
+        #[cfg(chat)]
+        {
+            let chatbot = ChatBot::new();
+
+            if let Ok(chatbot) = chatbot {
+                data.insert::<ChatBot>(chatbot);
+            }
         }
+
         data.insert::<StorageClient>(storage_client);
         data.insert::<ZumborInstances>(ZumborInstances::default())
     }

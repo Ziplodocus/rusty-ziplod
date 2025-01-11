@@ -58,16 +58,17 @@ pub async fn play(
         handler.play_only_input(input);
     }
 
-    let mut buffer = Vec::with_capacity(512);
+    let mut buffer: Vec<u8> = Vec::with_capacity(64);
     while let Some(Ok(byte)) = file_stream.next().await {
         buffer.push(byte);
 
-        if buffer.len() >= 512 {
+        if buffer.len() >= 64 {
             let res = tx.send(buffer);
             if let Err(err) = res {
                 dbg!(err);
             }
-            buffer = Vec::with_capacity(512);
+
+            buffer = Vec::with_capacity(64);
         }
     }
 
