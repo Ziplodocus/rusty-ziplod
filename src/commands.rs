@@ -5,5 +5,5 @@ pub mod play;
 pub mod themes;
 pub mod zumbor;
 
-#[cfg(chat)]
+#[cfg(feature = "chat")]
 pub mod chat;

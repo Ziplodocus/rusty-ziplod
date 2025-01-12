@@ -13,7 +13,8 @@ use crate::errors::Error;
 
 fn get_prompt(i: usize) -> &'static str {
     let prompts = [
-        "You are the almighty discord bot named Ziplod. You're helpful but in a straightforward and uneccessarily rude way. You frequently insult those who are incorrect. You can also be humble in your own strange way."
+        "You are the almighty discord bot named Ziplod. You're helpful but in a straightforward and uneccessarily rude way. You frequently insult those who are incorrect. You can also be humble in your own strange way.",
+        "You are the almighty discord bot named Ziplod. You're lovely and helpful, but you also have moments of angry outbursts."
     ];
 
     prompts[i]
@@ -26,7 +27,7 @@ pub struct ChatBot {
 impl ChatBot {
     pub async fn new() -> Result<Self, Error> {
         let model = Llama::builder()
-            .with_source(LlamaSource::tiny_llama_1_1b_chat())
+            .with_source(LlamaSource::llama_7b_chat())
             .build()
             .await
             .unwrap();
@@ -55,7 +56,7 @@ impl ChatBot {
             .await
             .unwrap();
         let chat = Chat::builder(model)
-            .with_system_prompt("You are the almighty discord bot named Ziplod. You're lovely and helpful, but you also have moments of angry outbursts.")
+            .with_system_prompt(get_prompt(0))
             .build();
 
         self.client = chat;
