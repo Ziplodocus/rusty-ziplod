@@ -7,6 +7,7 @@ use serenity::{
 };
 
 mod check;
+mod play;
 
 #[command]
 pub async fn theme(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
@@ -18,7 +19,7 @@ pub async fn theme(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
     let res: Result<(), Error> = match subcommand.as_str() {
         // "add" => add(ctx,msg,args),
         "check" => check::check(ctx, msg, args).await,
-        // "play" => play(ctx,msg, args),
+        "play" => play::play(ctx, msg, args).await,
         // "remove" => remove(ctx, msg, args),
         _ => Err(Error::Plain("No matching subcommand")),
     };
