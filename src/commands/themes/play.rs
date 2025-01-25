@@ -1,8 +1,10 @@
 use serenity::all::{standard::Args, Context, Message};
 
-use crate::{errors::Error, storage::StorageClient, utilities::message::resolve_voice_channel};
+use crate::{
+    errors::Error, storage::StorageClient, utilities::message::resolve_voice_channel, voice,
+};
 
-use super::get_tag;
+use super::{get_tag, get_theme_path};
 
 pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> Result<(), Error> {
     let data = ctx.data.read().await;
@@ -23,11 +25,17 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> Result<(), Er
         }
     };
 
+    let name: Option<String> = args.single().ok();
+    let tag = get_tag(&msg.author);
+
     let storage_client = data
         .get::<StorageClient>()
         .expect("Storage client is available in the context");
 
-    voice::play(voiceState, msg.args[0], msg.args[1]);
+    let path = get_theme_path(&tag, &kind, name.as_deref(), &storage_client).await?;
+    let file_stream = storage_client.get_stream(&path).await?;
+
+    let res = voice::play(ctx, voice_channel.id, voice_channel.guild_id, file_stream).await;
 
     Ok(())
 }
