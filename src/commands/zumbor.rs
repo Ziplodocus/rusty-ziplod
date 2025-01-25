@@ -43,7 +43,7 @@ impl ZumborInstances {
         }
     }
 
-    pub fn remove(&mut self, user_id: UserId) -> () {
+    pub fn remove(&mut self, user_id: UserId) {
         println!("{:?}", self.instances);
         self.instances
             .retain(|&instance_user_id| instance_user_id != user_id);

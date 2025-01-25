@@ -32,7 +32,7 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> Result<(), Er
         .get::<StorageClient>()
         .expect("Storage client is available in the context");
 
-    let path = get_theme_path(&tag, &kind, name.as_deref(), &storage_client).await?;
+    let path = get_theme_path(&tag, &kind, name.as_deref(), storage_client).await?;
     let file_stream = storage_client.get_stream(&path).await?;
 
     let res = voice::play(ctx, voice_channel.id, voice_channel.guild_id, file_stream).await;

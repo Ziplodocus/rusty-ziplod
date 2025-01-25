@@ -14,7 +14,7 @@ mod play;
 pub async fn theme(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let subcommand = args.single::<String>().map_err(|err| {
         println!("{:?}", err);
-        return Error::Plain("Uh oh it went wrong");
+        Error::Plain("Uh oh it went wrong")
     })?;
 
     let res: Result<(), Error> = match subcommand.as_str() {
@@ -34,7 +34,7 @@ pub async fn theme(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
 
 pub fn get_tag(user: &User) -> String {
     let maybe_global_name = user.global_name.clone();
-    return maybe_global_name.unwrap_or(user.tag());
+    maybe_global_name.unwrap_or(user.tag())
 }
 
 pub fn get_theme_prefix(tag: &str, kind: &str) -> String {
@@ -50,7 +50,7 @@ pub async fn get_theme_path(
     match file_name {
         Some(name) => Ok(format!("themes/{}/{}/{}", tag, kind, name)),
         None => {
-            let list = get_theme_list(tag, kind, &client).await?;
+            let list = get_theme_list(tag, kind, client).await?;
             let rand: usize = random_range(0, list.len() - 1);
             let object = list
                 .get(rand)

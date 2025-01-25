@@ -1,6 +1,6 @@
-use serenity::all::{standard::Args, Context, Message, User};
+use serenity::all::{standard::Args, Context, Message};
 
-use crate::{errors::Error, storage::StorageClient, utilities::random::random_range};
+use crate::{errors::Error, storage::StorageClient};
 
 use super::get_tag;
 

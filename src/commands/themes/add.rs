@@ -1,10 +1,10 @@
 use serenity::all::{
-    standard::{Args, CommandResult},
+    standard::Args,
     Context, Message,
 };
 
 use crate::{
-    commands::themes::{get_tag, get_theme_path},
+    commands::themes::get_tag,
     errors::Error,
     storage::StorageClient,
 };

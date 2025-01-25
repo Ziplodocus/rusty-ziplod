@@ -1,15 +1,13 @@
 use serenity::{
     framework::standard::{macros::command, Args, CommandResult},
-    futures::Stream,
-    model::prelude::{ChannelId, GuildChannel, GuildId, Message},
+    model::prelude::Message,
     prelude::Context,
 };
 
 use crate::{
     errors::Error,
     storage::StorageClient,
-    utilities::{message, random},
-    voice,
+    utilities::message,
 };
 
 use cloud_storage::Object;
