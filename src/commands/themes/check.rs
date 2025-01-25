@@ -11,8 +11,6 @@ pub async fn check(ctx: &Context, msg: &Message, mut _args: Args) -> Result<(), 
         .get::<StorageClient>()
         .expect("Storage client is available in the context");
 
-    // dbg!(&msg.author);
-
     let intro_path = format!("themes/{}/intro", get_tag(&msg.author));
     let outro_path = format!("themes/{}/outro", get_tag(&msg.author));
 
