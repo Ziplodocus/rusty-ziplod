@@ -9,6 +9,7 @@ use serenity::{
 mod add;
 mod check;
 mod play;
+mod remove;
 
 #[command]
 pub async fn theme(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
@@ -21,7 +22,7 @@ pub async fn theme(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
         "add" => add::add(ctx, msg, args).await,
         "check" => check::check(ctx, msg, args).await,
         "play" => play::play(ctx, msg, args).await,
-        // "remove" => remove(ctx, msg, args),
+        "remove" => remove::remove(ctx, msg, args).await,
         _ => Err(Error::Plain("No matching subcommand")),
     };
 
