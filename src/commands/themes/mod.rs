@@ -17,6 +17,11 @@ pub async fn theme(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
         Error::Plain("Uh oh it went wrong")
     })?;
 
+    dbg!(get_tag(&msg.author));
+    dbg!(msg.author.discriminator);
+    dbg!(&msg.author.name);
+    dbg!(msg.author.tag());
+
     let res: Result<(), Error> = match subcommand.as_str() {
         "add" => add::add(ctx, msg, args).await,
         "check" => check::check(ctx, msg, args).await,
@@ -48,10 +53,14 @@ pub async fn get_theme_path(
     client: &StorageClient,
 ) -> Result<String, Error> {
     match file_name {
-        Some(name) => Ok(format!("themes/{}/{}/{}", tag, kind, name)),
+        Some(name) => Ok(format!("themes/{}/{}/{}.mp3", tag, kind, name)),
         None => {
             let list = get_theme_list(tag, kind, client).await?;
-            let rand: usize = random_range(0, list.len() - 1);
+            let rand: usize = if list.len() == 1 {
+                0
+            } else {
+                random_range(0, list.len() - 1)
+            };
             let object = list
                 .get(rand)
                 .take()

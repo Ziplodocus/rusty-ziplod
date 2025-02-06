@@ -59,7 +59,7 @@ pub async fn add(ctx: &Context, msg: &Message, mut args: Args) -> Result<(), Err
         }
     };
 
-    if attachment.size > 347520 {
+    if attachment.size > 3347520 {
         let _ = msg
             .reply(
                 ctx,
