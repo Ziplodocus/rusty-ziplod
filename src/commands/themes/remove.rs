@@ -3,7 +3,7 @@ use serenity::all::{standard::Args, Context, Message};
 use crate::{
     commands::themes::get_tag,
     errors::Error,
-    storage::{self, StorageClient},
+    storage::{StorageClient},
 };
 
 pub async fn remove(ctx: &Context, msg: &Message, mut args: Args) -> Result<(), Error> {

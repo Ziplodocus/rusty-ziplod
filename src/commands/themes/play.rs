@@ -12,7 +12,7 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> Result<(), Er
     let kind: Box<str> = match args.single::<String>() {
         Ok(kind) if kind == "intro" || kind == "outro" => kind.into(),
         _ => {
-            msg.reply(ctx, "Try specifying intro or outro dimwit").await;
+            let _ = msg.reply(ctx, "Try specifying intro or outro dimwit").await;
             return Ok(());
         }
     };
@@ -20,7 +20,7 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> Result<(), Er
     let voice_channel = match resolve_voice_channel(ctx, msg).await {
         Ok(voice_channel) => voice_channel,
         Err(_) => {
-            msg.reply(ctx, "Get in a voice channel idot.").await;
+            let _ = msg.reply(ctx, "Get in a voice channel idot.").await;
             return Ok(());
         }
     };

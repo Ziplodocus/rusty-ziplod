@@ -68,7 +68,7 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
     return Ok(());
 }
 
-async fn play_track<'a>(
+async fn play_track(
     ctx: &Context,
     track_type: String,
     track_num: u32,
@@ -107,7 +107,7 @@ pub async fn count_tracks(ctx: &Context, track_type: &str) -> Result<usize, Erro
     storage_client.get_count(&file_name).await
 }
 
-async fn fetch_track<'a>(
+async fn fetch_track(
     ctx: &Context,
     track_type: &str,
     track_num: u32,

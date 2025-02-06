@@ -37,7 +37,7 @@ pub async fn check(ctx: &Context, msg: &Message, mut _args: Args) -> Result<(), 
     reply += "\nOutros:\n\t";
     reply += outro_list.join("\n\t").as_str();
 
-    msg.reply(ctx, reply).await;
+    let _ = msg.reply(ctx, reply).await;
 
     Ok(())
 }

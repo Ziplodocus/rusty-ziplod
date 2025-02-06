@@ -1,6 +1,6 @@
 use futures_util::{Stream, StreamExt};
 use std::{
-    io::{BufRead, BufReader, BufWriter, Read, Seek, Write},
+    io::{Read, Seek, Write},
     sync::{
         mpsc::{self, Receiver},
         Mutex,
@@ -82,7 +82,7 @@ impl Read for ReadableReceiver {
             .lock()
             .expect("Should only be the one lock. One reader.")
             .recv()
-            .map_err(|err| std::io::Error::other("Reading finished"))?])
+            .map_err(|_| std::io::Error::other("Reading finished"))?])
     }
 }
 
