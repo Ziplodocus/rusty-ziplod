@@ -45,7 +45,7 @@ pub async fn add(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult 
         o
     })?;
 
-    let path: Box<str> = format!("tracks/{track_type}/{num}.mp3").into();
+    let path: String = format!("tracks/{track_type}/{num}.mp3");
 
     if let Err(_err) = storage_client
         .create_stream(stream, &path, None, "audio/mpeg")
