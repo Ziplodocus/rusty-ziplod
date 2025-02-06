@@ -1,6 +1,6 @@
 use futures_util::{Stream, StreamExt};
 use std::{
-    io::{Read, Seek, Write},
+    io::{BufRead, BufReader, BufWriter, Read, Seek, Write},
     sync::{
         mpsc::{self, Receiver},
         Mutex,
@@ -58,24 +58,8 @@ pub async fn play(
         handler.play_only_input(input);
     }
 
-    let mut buffer: Vec<u8> = Vec::with_capacity(64);
     while let Some(Ok(byte)) = file_stream.next().await {
-        buffer.push(byte);
-
-        if buffer.len() >= 64 {
-            let res = tx.send(buffer);
-            if let Err(err) = res {
-                dbg!(err);
-            }
-
-            buffer = Vec::with_capacity(64);
-        }
-    }
-
-    println!("Finished main writing!");
-
-    if !buffer.is_empty() {
-        let res = tx.send(buffer);
+        let res = tx.send(byte);
         if let Err(err) = res {
             dbg!(err);
         }
@@ -87,27 +71,18 @@ pub async fn play(
 }
 
 struct ReadableReceiver {
-    receiver: Mutex<Receiver<Vec<u8>>>,
+    receiver: Mutex<Receiver<u8>>,
 }
 
 // Simply reads until the receiver has no more vecs to receive
 impl Read for ReadableReceiver {
     fn read(&mut self, mut buf: &mut [u8]) -> std::io::Result<usize> {
-        buf.write(
-            &self
-                .receiver
-                .lock()
-                .map_err(|err| {
-                    dbg!(err);
-                    std::io::Error::other("Failed to get the lock")
-                })?
-                .recv()
-                .map_err(|err| {
-                    dbg!(err);
-                    dbg!("No more details?");
-                    std::io::Error::other("Oh no")
-                })?,
-        )
+        buf.write(&[self
+            .receiver
+            .lock()
+            .expect("Should only be the one lock. One reader.")
+            .recv()
+            .map_err(|err| std::io::Error::other("Reading finished"))?])
     }
 }
 
