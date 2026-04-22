@@ -1261,9 +1261,9 @@ dependencies = [
 
 [[package]]
 name = "command_attr"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fcc89439e1bb4e19050a9586a767781a3060000d2f3296fd2a40597ad9421c5"
+checksum = "8208103c5e25a091226dfa8d61d08d0561cc14f31b25691811ba37d4ec9b157b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2840,7 +2840,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f07c02868ebe3ffab0c273801b815f19a9fc05743b5b9da971449dd40604fe30"
 dependencies = [
  "async-trait",
- "rustc-hash 2.1.0",
+ "rustc-hash 2.1.2",
  "tuple 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "web-time",
 ]
@@ -5687,6 +5687,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "poise"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "711433114bca9ff68582aa58af5cbcf573e83250a8714c2dca1c36f453cad3ae"
+dependencies = [
+ "async-trait",
+ "derivative",
+ "futures-util",
+ "indexmap 2.7.0",
+ "parking_lot",
+ "regex",
+ "serenity",
+ "serenity_poise_macros",
+ "tokio",
+ "tracing",
+ "trim-in-place",
+]
+
+[[package]]
 name = "poly1305"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5886,7 +5905,7 @@ dependencies = [
  "pin-project-lite",
  "quinn-proto",
  "quinn-udp",
- "rustc-hash 2.1.0",
+ "rustc-hash 2.1.2",
  "rustls 0.23.21",
  "socket2",
  "thiserror 2.0.11",
@@ -5904,7 +5923,7 @@ dependencies = [
  "getrandom 0.2.15",
  "rand 0.8.5",
  "ring 0.17.8",
- "rustc-hash 2.1.0",
+ "rustc-hash 2.1.2",
  "rustls 0.23.21",
  "rustls-pki-types",
  "slab",
@@ -6258,7 +6277,6 @@ dependencies = [
  "js-sys",
  "log",
  "mime",
- "mime_guess",
  "native-tls",
  "once_cell",
  "percent-encoding",
@@ -6563,9 +6581,9 @@ checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
 name = "rustc-hash"
-version = "2.1.0"
+version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7fb8039b3032c191086b10f11f319a6e99e1e82889c5cc6046f515c9db1d497"
+checksum = "94300abf3f1ae2e2b8ffb7b58043de3d399c73fa6f4b73826402a5c457614dbe"
 
 [[package]]
 name = "rustc_lexer"
@@ -6745,6 +6763,7 @@ dependencies = [
  "futures-util",
  "kalosm",
  "openssl",
+ "poise",
  "rand 0.8.5",
  "reqwest 0.12.12",
  "rustls 0.23.21",
@@ -7163,9 +7182,9 @@ dependencies = [
 
 [[package]]
 name = "serenity"
-version = "0.12.4"
+version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d72ec4323681bf9a3cabe40fd080abc2435859b502a1b5aa9bf693f125bfa76"
+checksum = "9bde37f42765dfdc34e2a039e0c84afbf79a3101c1941763b0beb816c2f17541"
 dependencies = [
  "arrayvec 0.7.6",
  "async-trait",
@@ -7177,12 +7196,12 @@ dependencies = [
  "dashmap",
  "flate2",
  "futures",
- "fxhash",
  "levenshtein",
  "mime_guess",
  "parking_lot",
  "percent-encoding",
- "reqwest 0.11.27",
+ "reqwest 0.12.12",
+ "rustc-hash 2.1.2",
  "secrecy",
  "serde",
  "serde_cow",
@@ -7209,6 +7228,18 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_repr",
+]
+
+[[package]]
+name = "serenity_poise_macros"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9bc8407893be0d973a7bb48325e10e0160a0db44f4099467c83179688220e5f5"
+dependencies = [
+ "darling 0.20.10",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.96",
 ]
 
 [[package]]
@@ -8680,6 +8711,12 @@ dependencies = [
  "wasm-bindgen",
  "web-sys",
 ]
+
+[[package]]
+name = "trim-in-place"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "343e926fc669bc8cde4fa3129ab681c63671bae288b1f1081ceee6d9d37904fc"
 
 [[package]]
 name = "triomphe"

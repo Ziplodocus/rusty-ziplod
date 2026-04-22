@@ -6,14 +6,10 @@ mod voice;
 
 use commands::zumbor::ZumborInstances;
 use dotenv::dotenv;
-use serenity::all::standard::Configuration;
-use serenity::client::{Client, EventHandler};
-use serenity::framework::standard::macros::group;
-use serenity::framework::StandardFramework;
-use serenity::prelude::GatewayIntents;
 use songbird::serenity::SerenityInit;
 use std::env;
 use storage::StorageClient;
+use poise::serenity_prelude as serenity;
 
 use commands::{
     add::ADD_COMMAND, list::LIST_COMMAND, ping::PING_COMMAND, play::PLAY_COMMAND,
@@ -38,21 +34,32 @@ async fn main() {
     dotenv().ok();
 
     let token = env::var("DISCORD_TOKEN").expect("Token");
-    let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
+    let intents = serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT;
     let bucket_name = env::var("CLOUD_BUCKET_NAME").expect("Bucket name");
     let prefix = env::var("COMMAND_PREFIX").expect("Prefix");
 
     println!("Env variables determined.");
 
-    let framework = StandardFramework::new().group(&GENERAL_GROUP);
-    framework.configure(Configuration::new().prefix(prefix));
-
-    let mut client = Client::builder(&token, intents)
-        .event_handler(Handler)
+    let framework = poise::Framework::builder()
+        .options(poise::FrameworkOptions {
+            commands: vec![play()],
+            ..Default::default()
+        })
+        .setup(|ctx, _ready, framework| {
+            Box::pin(async move {
+                poise::builtins::register_globally(ctx, &framework.options.commands).await?;
+                Ok(Data {})
+            })
+        })
+        .build();
+    
+    let mut client = serenity::ClientBuilder::new(&token, intents)
         .framework(framework)
         .register_songbird()
         .await
-        .expect("Couldn't create new client!");
+        .expect("Couldn't create new client!")
+        .start()
+        .expect("Start client");
 
     println!("Client created!");
 
