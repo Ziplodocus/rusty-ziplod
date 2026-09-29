@@ -34,13 +34,14 @@ impl StorageClient {
             })
     }
 
+    /// Return the object as a byte stream
     pub async fn get_stream(
         &self,
-        path: &str,
+        path: impl AsRef<str>,
     ) -> Result<impl Stream<Item = Result<u8, Error>>, Error> {
         let object = self.client.object();
         let stream = object
-            .download_streamed(&self.bucket_name, path)
+            .download_streamed(&self.bucket_name, path.as_ref())
             .await
             .map_err(|err| -> Error { err.into() })?
             .map_err(|err| -> Error { err.into() });
@@ -79,9 +80,7 @@ impl StorageClient {
         Ok(())
     }
 
-    /**
-     * Uploads a stream of bytes through the storage driver
-     */
+    ///Uploads a stream of bytes through the storage driver
     pub async fn create_stream(
         &self,
         stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Send + Sync + 'static,
@@ -102,10 +101,12 @@ impl StorageClient {
         Ok(())
     }
 
+    /// Create a json file using the given string
     pub async fn create_json(&self, path: &str, content: String) -> Result<(), Error> {
         self.create(content, path, "application/json").await
     }
 
+    /// Get a random object in the directory with the given prefix
     pub async fn get_random(&self, prefix: &str) -> Result<Vec<u8>, Error> {
         let objects = self.get_objects(prefix).await?;
 
@@ -118,6 +119,7 @@ impl StorageClient {
         self.get(&object.name).await
     }
 
+    /// Return the count of objects with the given prefix
     pub async fn get_count(&self, prefix: &str) -> Result<usize, Error> {
         let objs = self.get_objects(prefix).await?;
         Ok(objs.len())

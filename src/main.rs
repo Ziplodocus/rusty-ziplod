@@ -11,23 +11,25 @@ use std::env;
 use storage::StorageClient;
 use poise::serenity_prelude as serenity;
 
+type Error = Box<dyn std::error::Error + Send + Sync>;
+type Context<'a> = poise::Context<'a, Data, Error>;
+
 use commands::{
-    add::ADD_COMMAND, list::LIST_COMMAND, ping::PING_COMMAND, play::PLAY_COMMAND,
-    themes::THEME_COMMAND, zumbor::ZUMBOR_COMMAND,
+//     add::ADD_COMMAND,
+//     list::LIST_COMMAND,
+//     ping::PING_COMMAND,
+    play::play
+//     themes::THEME_COMMAND,
+//     zumbor::ZUMBOR_COMMAND,
 };
 
-#[cfg(feature = "chat")]
-use commands::chat::{ChatBot, CHAT_COMMAND};
+// #[cfg(feature = "chat")]
+// use commands::chat::{ChatBot, CHAT_COMMAND};
+//
+struct Data {
+    storage_client: StorageClient,
 
-#[group]
-#[commands(ping, zumbor, play, add, list, theme)]
-#[cfg_attr(feature = "chat", commands(chat))]
-struct General;
-
-struct Handler;
-
-#[serenity::async_trait]
-impl EventHandler for Handler {}
+}
 
 #[tokio::main]
 async fn main() {
@@ -40,26 +42,27 @@ async fn main() {
 
     println!("Env variables determined.");
 
-    let framework = poise::Framework::builder()
+    let poise_framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![play()],
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
-                poise::builtins::register_globally(ctx, &framework.options.commands).await?;
+                poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 Ok(Data {})
             })
         })
         .build();
-    
-    let mut client = serenity::ClientBuilder::new(&token, intents)
-        .framework(framework)
-        .register_songbird()
-        .await
-        .expect("Couldn't create new client!")
-        .start()
-        .expect("Start client");
+
+
+    // Create a new instance of the Client, logging in as a bot.
+    let mut serenity =
+        serenity::Client::builder(&token, intents)
+            .register_songbird()
+            .framework(poise_framework)
+            .await
+            .expect("Err creating client");
 
     println!("Client created!");
 
@@ -83,7 +86,9 @@ async fn main() {
         data.insert::<ZumborInstances>(ZumborInstances::default())
     }
 
-    if let Err(why) = client.start().await {
-        println!("An error occurred while running the client: {:?}", why)
+    // Start listening for events by starting a single shard
+    if let Err(why) = serenity.start().await {
+        println!("Client error: {why:?}");
     }
+
 }

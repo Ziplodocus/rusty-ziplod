@@ -1,30 +1,18 @@
 use serenity::{
     all::GuildId,
     model::prelude::{ChannelType, GuildChannel, Member, Message},
-    prelude::Context,
 };
 
-use crate::errors::Error;
-
-pub async fn resolve_voice_channel(ctx: &Context, msg: &Message) -> Result<GuildChannel, Error> {
-    let user = msg.mentions.first().unwrap_or(&msg.author);
-    let guild = msg
-        .guild_id
-        .expect("Command to be called in a guild channel");
-
-    let maybe_member = guild.member(ctx, user).await;
-
-    let member = maybe_member
-        .map_err(|_| Error::Plain("You can't mention someone not in the guild you fool."))?;
-
-    fetch_voice_channel(ctx, guild, &member).await
-}
+use crate::{
+    Context,
+    errors::Error
+};
 
 pub async fn fetch_voice_channel(
-    ctx: &Context,
-    guild: GuildId,
+    ctx: Context<'_>,
     member: &Member,
 ) -> Result<GuildChannel, Error> {
+    let guild = ctx.guild_id().ok_or(Error::Plain("Can only be used in a server"))?;
     let channels = guild.channels(ctx).await.expect("Guild is available");
 
     for (_, channel) in channels {

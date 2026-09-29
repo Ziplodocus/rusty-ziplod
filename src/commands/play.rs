@@ -1,39 +1,50 @@
+
 use serenity::{
-    framework::standard::{macros::command, Args, CommandResult},
-    futures::Stream,
-    model::prelude::{GuildChannel, Message},
-    prelude::Context,
+    framework::standard::{
+        Args, CommandResult, macros::command
+    },
+    futures::Stream, model::{
+        guild::Member, prelude::{GuildChannel, Message}
+    },
 };
 
 use crate::{
+    Context,
+    Error as CommandError,
     errors::Error,
     storage::StorageClient,
     utilities::{message, random},
     voice,
 };
 
-#[command]
-pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+#[poise::command(slash_command, prefix_command)]
+pub async fn play(
+    ctx: Context<'_>,
+    #[description = "The type of track to play"] track_type: Option<String>,
+    #[description = "Track number to play"] track_num: Option<u32>,
+    #[description = "The user to play to"] member : Option<Member>
+) -> Result<(), CommandError> {
     println!("The play command has been triggered");
-    let maybe_voice_channel = message::resolve_voice_channel(ctx, msg).await;
 
-    if let Err(err) = maybe_voice_channel {
-        msg.reply(ctx, err.to_string()).await?;
-        return Ok(());
-    }
-
-    let voice_channel = maybe_voice_channel?;
-
-    let track_type: String = match args.single::<String>() {
-        Ok(arg) => arg,
-        Err(_) => get_random_track_type(),
+    let member = match member {
+        Some(member) => member,
+        None => ctx.author_member().await.expect("Author is member").into_owned()
     };
+
+    ctx.guild_id().unwrap().channels(ctx);
+
+    let voice_res = message::fetch_voice_channel(ctx, &member).await;
+    let Ok(voice_channel) = voice_res else {
+        let _res = ctx.say(voice_res.err().unwrap().to_string()).await;
+        return Ok(());
+    };
+
+    let track_type: String = track_type.unwrap_or_else(get_random_track_type);
 
     let track_count: u32 = match count_tracks(ctx, &track_type).await {
         Ok(val) => val,
         Err(e) => {
-            msg.reply(
-                ctx,
+            ctx.say(
                 "The request can't be completed right now dufus.".to_string(),
             )
             .await?;
@@ -46,13 +57,12 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
 
     let track_num = match track_count {
         0...1 => 0,
-        _ => args
-            .single::<u32>()
-            .unwrap_or_else(|_| random::random_range(0, track_count - 1)),
+        _ => track_num
+            .unwrap_or_else(|| random::random_range(0, track_count - 1)),
     };
 
     if track_num >= track_count {
-        msg.reply(ctx, format!("There is no {track_type} {track_num}"))
+        ctx.say(format!("There is no {track_type} {track_num}"))
             .await?;
         return Ok(());
     }
@@ -69,7 +79,7 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
 }
 
 async fn play_track(
-    ctx: &Context,
+    ctx: Context<'_>,
     track_type: String,
     track_num: u32,
     voice_channel: GuildChannel,
@@ -79,11 +89,15 @@ async fn play_track(
     let track_stream = fetch_track(ctx, &track_type, track_num).await?;
 
     let guild_id = voice_channel
-        .guild(ctx)
+        .guild(&ctx)
         .expect("The channel to be in a guild")
         .id;
 
-    voice::play(ctx, voice_channel.id, guild_id, track_stream)
+    voice::play(ctx.serenity_context(),
+        voice_channel.id,
+        guild_id,
+        track_stream
+    )
         .await
         .map_err(|o| {
             println!("{o}");
@@ -98,27 +112,21 @@ fn get_random_track_type() -> String {
     "meme".to_owned()
 }
 
-pub async fn count_tracks(ctx: &Context, track_type: &str) -> Result<usize, Error> {
-    let data = ctx.data.read().await;
-    let storage_client = data
-        .get::<StorageClient>()
-        .expect("Storage client is available in the context");
+pub async fn count_tracks(ctx: Context<'_>, track_type: &str) -> Result<usize, Error> {
+    let storage_client = &(ctx.data().storage_client);
     let file_name = format!("tracks/{track_type}/");
     storage_client.get_count(&file_name).await
 }
 
-async fn fetch_track(
-    ctx: &Context,
-    track_type: &str,
+async fn fetch_track<'a>(
+    ctx: Context<'_>,
+    track_type: &'a str,
     track_num: u32,
 ) -> Result<impl Stream<Item = Result<u8, Error>> + Unpin, Error> {
-    let data = ctx.data.read().await;
 
-    let storage_client = data
-        .get::<StorageClient>()
-        .expect("Storage client is available in the context");
+    let storage_client = &(ctx.data().storage_client);
     println!("Fetching {track_type} {track_num}");
     let file_name = format!("tracks/{track_type}/{track_num}.mp3");
 
-    storage_client.get_stream(&file_name).await
+    storage_client.get_stream(file_name).await
 }
