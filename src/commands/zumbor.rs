@@ -1,9 +1,4 @@
-use serenity::{
-    all::UserId,
-    framework::standard::{macros::command, CommandResult},
-    model::prelude::Message,
-    prelude::{Context, TypeMapKey},
-};
+use serenity::{all::UserId, model::prelude::Message};
 
 mod attributes;
 mod effects;
@@ -13,11 +8,23 @@ mod player;
 mod ui;
 use initialise::start;
 
-use crate::errors::Error;
+use crate::{CommandResult, Context, errors::Error};
 
-#[command]
-pub async fn zumbor(ctx: &Context, msg: &Message) -> CommandResult {
-    let res = start(ctx, msg).await;
+pub struct Zumbor {
+    instances: ZumborInstances,
+}
+
+impl Zumbor {
+    pub fn new() -> Self {
+        let instances = ZumborInstances::default();
+
+        Zumbor { instances }
+    }
+}
+
+#[poise::command(slash_command, prefix_command)]
+pub async fn zumbor(ctx: Context<'_>, msg: Message) -> CommandResult {
+    let res = start(ctx, &msg).await;
     match res {
         Ok(some) => println!("{}", some),
         Err(err) => println!("{}", err),
@@ -49,8 +56,4 @@ impl ZumborInstances {
             .retain(|&instance_user_id| instance_user_id != user_id);
         println!("{:?}", self.instances);
     }
-}
-
-impl TypeMapKey for ZumborInstances {
-    type Value = ZumborInstances;
 }

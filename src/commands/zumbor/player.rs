@@ -1,7 +1,9 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serenity::{
-    all::CreateEmbedAuthor, builder::CreateEmbed, model::prelude::ChannelId, prelude::Context,
+    all::CreateEmbedAuthor,
+    builder::CreateEmbed,
+    model::{prelude::ChannelId, user::User},
 };
 use std::{cmp, sync::Arc};
 
@@ -12,7 +14,7 @@ use super::{
     attributes::Attribute,
     effects::{Effectable, LingeringEffect},
 };
-use crate::{errors::Error, utilities::await_interactions};
+use crate::{Context, errors::Error, utilities::await_interactions};
 use builder::PlayerDetails;
 use stats::Stats;
 
@@ -111,11 +113,9 @@ pub enum RollResult {
     Value(i16),
 }
 
-pub async fn create(
-    context: &Context,
-    user_tag: Arc<str>,
-    channel: ChannelId,
-) -> Result<Player, Error> {
+pub async fn create(context: Context<'_>, user: &User) -> Result<Player, Error> {
+    let channel = context.channel_id();
+    let user_tag: Arc<str> = user.tag().into();
     let message = builder::prompt_character_creation_start(channel, context).await?;
     let interaction = await_interactions::component(context, &message, user_tag.clone()).await?;
     builder::prompt_with_character_details_modal(interaction, context).await?;

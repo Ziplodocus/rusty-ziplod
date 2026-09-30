@@ -6,10 +6,9 @@ use serenity::{
     },
     builder::CreateInteractionResponse,
     model::prelude::{ChannelId, Message},
-    prelude::Context,
 };
 
-use crate::{commands::zumbor::attributes::Attribute, errors::Error};
+use crate::{Context, commands::zumbor::attributes::Attribute, errors::Error};
 
 pub struct PlayerDetails {
     pub name: String,
@@ -37,7 +36,7 @@ impl TryFrom<&Vec<ActionRow>> for PlayerDetails {
                 _ => {
                     return Err(Error::Plain(
                         "Key should be either \"name\" or \"description\"",
-                    ))
+                    ));
                 }
             };
         }
@@ -71,7 +70,7 @@ impl TryFrom<Vec<ActionRow>> for PlayerDetails {
                 _ => {
                     return Err(Error::Plain(
                         "Key should be either \"name\" or \"description\"",
-                    ))
+                    ));
                 }
             };
         }
@@ -85,7 +84,7 @@ impl TryFrom<Vec<ActionRow>> for PlayerDetails {
 
 pub async fn prompt_character_creation_start(
     channel: ChannelId,
-    context: &Context,
+    context: Context<'_>,
 ) -> Result<Message, Error> {
     channel
         .send_message(
@@ -103,7 +102,7 @@ pub async fn prompt_character_creation_start(
 
 pub async fn prompt_for_player_stats(
     interaction: ModalInteraction,
-    context: &Context,
+    context: Context<'_>,
 ) -> Result<(), Error> {
     interaction
         .create_response(
@@ -123,7 +122,7 @@ pub async fn prompt_for_player_stats(
 
 pub async fn re_prompt_for_player_stats(
     interaction: ModalInteraction,
-    context: &Context,
+    context: Context<'_>,
 ) -> Result<(), Error> {
     interaction
         .create_response(
@@ -143,7 +142,7 @@ pub async fn re_prompt_for_player_stats(
 
 pub async fn prompt_with_character_details_modal(
     interaction: ComponentInteraction,
-    context: &Context,
+    context: Context<'_>,
 ) -> Result<(), Error> {
     interaction
         .create_response(context, create_character_details_modal())
@@ -156,7 +155,7 @@ pub async fn prompt_with_character_details_modal(
 
 pub async fn prompt_with_stats_modal(
     interaction: ComponentInteraction,
-    context: &Context,
+    context: Context<'_>,
 ) -> Result<(), Error> {
     interaction
         .create_response(context, create_stats_modal())

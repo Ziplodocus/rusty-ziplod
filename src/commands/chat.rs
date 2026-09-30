@@ -1,12 +1,11 @@
 use serenity::{
-    framework::standard::{macros::command, CommandResult},
+    framework::standard::{CommandResult, macros::command},
     model::prelude::Message,
-    prelude::{Context, TypeMapKey},
 };
 
 use kalosm::{
     language::{Chat, Llama, LlamaSource},
-    sound::{dasp::sample::ToSample, TextStream},
+    sound::{TextStream, dasp::sample::ToSample},
 };
 
 use crate::errors::Error;
@@ -14,7 +13,7 @@ use crate::errors::Error;
 fn get_prompt(i: usize) -> &'static str {
     let prompts = [
         "You are the almighty discord bot named Ziplod. You're helpful but in a straightforward and uneccessarily rude way. You frequently insult those who are incorrect. You can also be humble in your own strange way.",
-        "You are the almighty discord bot named Ziplod. You're lovely and helpful, but you also have moments of angry outbursts."
+        "You are the almighty discord bot named Ziplod. You're lovely and helpful, but you also have moments of angry outbursts.",
     ];
 
     prompts[i]
@@ -67,8 +66,8 @@ impl TypeMapKey for ChatBot {
     type Value = ChatBot;
 }
 
-#[command]
-pub async fn chat(ctx: &Context, msg: &Message) -> CommandResult {
+#[poise::command(slash_command, prefix_command)]
+pub async fn chat(ctx: Context<'_>, msg: &Message) -> CommandResult {
     let message = msg.content.replace("!chat", "");
     println!("Chat triggered {}", message);
     let mut data = ctx.data.write().await;

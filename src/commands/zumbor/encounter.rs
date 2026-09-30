@@ -1,15 +1,10 @@
-use crate::errors::Error;
+use crate::{Context, errors::Error};
 use std::collections::HashMap;
 
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use serenity::{
-    all::{Colour, CreateActionRow, CreateButton, CreateEmbed},
-    prelude::Context,
-};
-
-use crate::StorageClient;
+use serenity::all::{Colour, CreateActionRow, CreateButton, CreateEmbed};
 
 use super::{
     attributes::Attribute,
@@ -181,12 +176,8 @@ pub enum EncounterResultKind {
 }
 
 // Return a random encounter from the storage bucket
-pub async fn get_random(ctx: &Context) -> Result<Encounter, Error> {
-    let data = ctx.data.read().await;
-
-    let storage_client = data
-        .get::<StorageClient>()
-        .expect("Storage client is available in context");
+pub async fn get_random(ctx: Context<'_>) -> Result<Encounter, Error> {
+    let storage_client = ctx.data().storage_client;
 
     let objects = storage_client.get_objects("zumbor/encounters").await?;
 

@@ -1,19 +1,15 @@
 use serenity::{
-    framework::standard::{macros::command, Args, CommandResult},
+    framework::standard::{Args, CommandResult, macros::command},
     model::prelude::Message,
     prelude::Context,
 };
 
-use crate::{
-    errors::Error,
-    storage::StorageClient,
-    utilities::message,
-};
+use crate::{errors::Error, storage::StorageClient, utilities::message};
 
 use cloud_storage::Object;
 
-#[command]
-pub async fn list(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+#[poise::command(slash_command, prefix_command)]
+pub async fn list(ctx: Context<'_>, msg: &Message, mut args: Args) -> CommandResult {
     println!("The play command has been triggered");
     let maybe_voice_channel = message::resolve_voice_channel(ctx, msg).await;
 
@@ -43,7 +39,7 @@ pub async fn list(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
     return Ok(());
 }
 
-pub async fn get_tracks(ctx: &Context, track_type: &str) -> Result<Vec<Object>, Error> {
+pub async fn get_tracks(ctx: Context<'_>, track_type: &str) -> Result<Vec<Object>, Error> {
     let data = ctx.data.read().await;
     let storage_client = data
         .get::<StorageClient>()

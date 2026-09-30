@@ -1,10 +1,10 @@
-use serenity::all::{standard::Args, Context, Message};
+use serenity::all::{Context, Message, standard::Args};
 
 use crate::{errors::Error, storage::StorageClient};
 
 use super::get_tag;
 
-pub async fn check(ctx: &Context, msg: &Message, mut _args: Args) -> Result<(), Error> {
+pub async fn check(ctx: Context<'_>, msg: &Message, mut _args: Args) -> Result<(), Error> {
     let data = ctx.data.read().await;
 
     let storage_client = data

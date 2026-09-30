@@ -1,8 +1,8 @@
-use serenity::all::{standard::Args, Context, Message};
+use serenity::all::{Context, Message, standard::Args};
 
 use crate::{commands::themes::get_tag, errors::Error, storage::StorageClient};
 
-pub async fn add(ctx: &Context, msg: &Message, mut args: Args) -> Result<(), Error> {
+pub async fn add(ctx: Context<'_>, msg: &Message, mut args: Args) -> Result<(), Error> {
     let kind: String = match args.single() {
         Ok(kind) if (kind == "intro") | (kind == "outro") => kind,
         Ok(_) => {

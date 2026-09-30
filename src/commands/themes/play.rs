@@ -1,4 +1,4 @@
-use serenity::all::{standard::Args, Context, Message};
+use serenity::all::{Context, Message, standard::Args};
 
 use crate::{
     errors::Error, storage::StorageClient, utilities::message::resolve_voice_channel, voice,
@@ -6,7 +6,7 @@ use crate::{
 
 use super::{get_tag, get_theme_path};
 
-pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> Result<(), Error> {
+pub async fn play(ctx: Context<'_>, msg: &Message, mut args: Args) -> Result<(), Error> {
     let data = ctx.data.read().await;
 
     let kind: Box<str> = match args.single::<String>() {

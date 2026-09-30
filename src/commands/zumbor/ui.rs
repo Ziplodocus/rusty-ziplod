@@ -5,10 +5,9 @@ use serenity::{
         ChannelId, CreateActionRow, CreateButton, CreateMessage, EditMessage, Interaction, Message,
     },
     builder::CreateEmbed,
-    prelude::Context,
 };
 
-use crate::{errors::Error, utilities::await_interactions};
+use crate::{Context, errors::Error, utilities::await_interactions};
 
 use super::{
     encounter::{Encounter, EncounterResult},
@@ -16,19 +15,22 @@ use super::{
 };
 
 pub struct UI<'a> {
-    context: &'a Context,
-    channel: ChannelId,
+    context: Context<'a>,
     interaction: Option<Arc<Interaction>>,
     messages: VecDeque<CreateEmbed>,
 }
 
-impl UI<'_> {
-    pub fn builder() -> UIBuilder<'static> {
-        UIBuilder::default()
+impl<'a> UI<'a> {
+    pub fn new(context: Context<'a>) -> Self {
+        UI {
+            context,
+            interaction: None,
+            messages: VecDeque::new(),
+        }
     }
 
     pub async fn say(&self, message_content: &str) {
-        if let Err(t) = self.channel.say(self.context, message_content).await {
+        if let Err(t) = self.context.say(message_content).await {
             println!("{}", t);
         };
     }
@@ -42,7 +44,8 @@ impl UI<'_> {
         let user_tag = player.tag.clone();
 
         let message = self
-            .channel
+            .context
+            .channel_id()
             .send_message(
                 self.context,
                 CreateMessage::new()
@@ -115,7 +118,8 @@ impl UI<'_> {
     pub async fn request_continue(&self, player: &Player) -> Result<ContinueOption, Error> {
         println!("Requesting continue!");
         let message = self
-            .channel
+            .context
+            .channel_id()
             .send_message(
                 self.context,
                 CreateMessage::new().components(vec![CreateActionRow::Buttons(vec![
@@ -129,7 +133,6 @@ impl UI<'_> {
         match message {
             Ok(message) => {
                 let user_tag = player.tag.clone();
-                let context = self.context.clone();
 
                 let interaction = message
                     .await_component_interaction(self.context)
@@ -138,12 +141,10 @@ impl UI<'_> {
                     .await
                     .ok_or(Error::Plain("Message interaction was not collected"))?;
 
-                tokio::spawn(async move {
-                    let res = message.delete(context).await;
-                    if let Err(msg) = res {
-                        println!("{}", msg);
-                    }
-                });
+                let res = message.delete(self.context).await;
+                if let Err(msg) = res {
+                    println!("{}", msg);
+                }
 
                 let choice = interaction.data.custom_id.clone();
 
@@ -171,44 +172,14 @@ impl UI<'_> {
 
     pub async fn send_messages(&mut self) -> Result<Message, Error> {
         let messages = self.get_queued_messages();
-        self.channel
+        self.context
+            .channel_id()
             .send_message(self.context, CreateMessage::new().embeds(messages.into()))
             .await
             .map_err(|err| {
                 dbg!(&err);
                 Error::Serenity(err)
             })
-    }
-}
-
-#[derive(Default)]
-pub struct UIBuilder<'a> {
-    context: Option<&'a Context>,
-    channel: Option<ChannelId>,
-}
-
-impl<'a> UIBuilder<'a> {
-    pub fn context(mut self, context: &'a Context) -> Self {
-        self.context = Some(context);
-        self
-    }
-
-    pub fn channel(mut self, channel: ChannelId) -> Self {
-        self.channel = Some(channel);
-        self
-    }
-
-    pub fn build(self) -> UI<'a> {
-        UI {
-            context: self
-                .context
-                .expect("Context should be added to the builder before building"),
-            channel: self
-                .channel
-                .expect("Channel should be added to the builder before building"),
-            interaction: None,
-            messages: VecDeque::new(),
-        }
     }
 }
 

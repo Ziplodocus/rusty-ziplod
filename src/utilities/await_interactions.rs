@@ -3,13 +3,12 @@ use std::{sync::Arc, time::Duration};
 use serenity::{
     all::{ComponentInteraction, ModalInteraction},
     model::prelude::Message,
-    prelude::Context,
 };
 
-use crate::errors::Error;
+use crate::{Context, errors::Error};
 
 pub(crate) async fn component(
-    context: &Context,
+    context: Context<'_>,
     message: &Message,
     user_tag: Arc<str>,
 ) -> Result<ComponentInteraction, Error> {
@@ -23,7 +22,7 @@ pub(crate) async fn component(
         ))
 }
 pub(crate) async fn modal(
-    context: &Context,
+    context: Context<'_>,
     message: &Message,
     user_tag: Arc<str>,
 ) -> Result<ModalInteraction, Error> {

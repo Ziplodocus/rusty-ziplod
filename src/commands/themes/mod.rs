@@ -1,7 +1,7 @@
 use crate::{errors::Error, storage::StorageClient, utilities::random::random_range};
 use serenity::{
     all::User,
-    framework::standard::{macros::command, Args, CommandResult},
+    framework::standard::{Args, CommandResult, macros::command},
     model::prelude::Message,
     prelude::Context,
 };
@@ -11,8 +11,8 @@ mod check;
 mod play;
 mod remove;
 
-#[command]
-pub async fn theme(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+#[poise::command(slash_command, prefix_command)]
+pub async fn theme(ctx: Context<'_>, msg: &Message, mut args: Args) -> CommandResult {
     let subcommand = args.single::<String>().map_err(|err| {
         println!("{:?}", err);
         Error::Plain("Uh oh it went wrong")

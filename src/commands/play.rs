@@ -1,18 +1,14 @@
-
 use serenity::{
-    framework::standard::{
-        Args, CommandResult, macros::command
-    },
-    futures::Stream, model::{
-        guild::Member, prelude::{GuildChannel, Message}
+    futures::Stream,
+    model::{
+        guild::Member,
+        prelude::{GuildChannel, Message},
     },
 };
 
 use crate::{
-    Context,
-    Error as CommandError,
+    CommandResult, Context,
     errors::Error,
-    storage::StorageClient,
     utilities::{message, random},
     voice,
 };
@@ -22,13 +18,17 @@ pub async fn play(
     ctx: Context<'_>,
     #[description = "The type of track to play"] track_type: Option<String>,
     #[description = "Track number to play"] track_num: Option<u32>,
-    #[description = "The user to play to"] member : Option<Member>
-) -> Result<(), CommandError> {
+    #[description = "The user to play to"] member: Option<Member>,
+) -> CommandResult {
     println!("The play command has been triggered");
 
     let member = match member {
         Some(member) => member,
-        None => ctx.author_member().await.expect("Author is member").into_owned()
+        None => ctx
+            .author_member()
+            .await
+            .expect("Author is member")
+            .into_owned(),
     };
 
     ctx.guild_id().unwrap().channels(ctx);
@@ -44,10 +44,8 @@ pub async fn play(
     let track_count: u32 = match count_tracks(ctx, &track_type).await {
         Ok(val) => val,
         Err(e) => {
-            ctx.say(
-                "The request can't be completed right now dufus.".to_string(),
-            )
-            .await?;
+            ctx.say("The request can't be completed right now dufus.")
+                .await?;
             println!("{e}");
             return Ok(());
         }
@@ -57,8 +55,7 @@ pub async fn play(
 
     let track_num = match track_count {
         0...1 => 0,
-        _ => track_num
-            .unwrap_or_else(|| random::random_range(0, track_count - 1)),
+        _ => track_num.unwrap_or_else(|| random::random_range(0, track_count - 1)),
     };
 
     if track_num >= track_count {
@@ -93,11 +90,7 @@ async fn play_track(
         .expect("The channel to be in a guild")
         .id;
 
-    voice::play(ctx.serenity_context(),
-        voice_channel.id,
-        guild_id,
-        track_stream
-    )
+    voice::play(ctx, voice_channel.id, guild_id, track_stream)
         .await
         .map_err(|o| {
             println!("{o}");
@@ -123,7 +116,6 @@ async fn fetch_track<'a>(
     track_type: &'a str,
     track_num: u32,
 ) -> Result<impl Stream<Item = Result<u8, Error>> + Unpin, Error> {
-
     let storage_client = &(ctx.data().storage_client);
     println!("Fetching {track_type} {track_num}");
     let file_name = format!("tracks/{track_type}/{track_num}.mp3");

@@ -5,10 +5,9 @@ use serenity::{
         prelude::{ChannelId, Message, UserId},
         user::User,
     },
-    prelude::Context,
 };
 
-use crate::{commands::zumbor::ZumborInstances, errors::Error};
+use crate::{Context, commands::zumbor::ZumborInstances, errors::Error};
 
 use super::{
     effects::Effectable,
@@ -17,14 +16,13 @@ use super::{
     ui::{ContinueOption, UI},
 };
 
-pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
-    let user: &User = &msg.author;
-    let channel_id = msg.channel_id;
+pub async fn start(ctx: Context<'_>, msg: &Message) -> Result<bool, Error> {
+    let user: &User = ctx.author();
+    let zumbor = &(ctx.data().zumbor);
 
-    if let Err(err) = add_user_instance(ctx, user.id).await {
+    if let Err(err) = zumbor.instances.add(user.id) {
         nice_message(
             ctx,
-            channel_id,
             "You Fail!".to_string(),
             "You already have a running instance of Zumbor you fool!".to_string(),
         )
@@ -36,10 +34,10 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
     let mut player = if let Ok(player) = player::storage::load_save(ctx, &user.tag()).await {
         player
     } else {
-        player::create(ctx, user.tag().into(), channel_id).await?
+        player::create(ctx, user).await?
     };
 
-    let mut ui = UI::builder().context(ctx).channel(channel_id).build();
+    let mut ui = UI::new(ctx);
 
     loop {
         let mut encounter: Encounter = encounter::get_random(ctx).await?;
@@ -117,7 +115,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             //     }
             // };
 
-            remove_user_instance(ctx, user.id).await;
+            zumbor.instances.remove(user.id);
             return Ok(true);
         }
 
@@ -127,7 +125,7 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
             continue;
         };
 
-        remove_user_instance(ctx, user.id).await;
+        zumbor.instances.remove(user.id);
 
         ui.queue_message(
             CreateEmbed::new()
@@ -196,33 +194,16 @@ pub async fn start(ctx: &Context, msg: &Message) -> Result<bool, Error> {
 // }
 
 async fn nice_message(
-    ctx: &Context,
-    channel_id: ChannelId,
+    ctx: Context<'_>,
     title: String,
     description: String,
 ) -> Result<Message, Error> {
-    let res = channel_id
+    let res = ctx
+        .channel_id()
         .send_message(
             ctx,
             CreateMessage::new().embed(CreateEmbed::new().title(title).description(description)),
         )
         .await?;
     Ok(res)
-}
-
-/**
- * Adds the user ID to the running instances saved into th context, returns an error if the user id exists in the intances vec already
- */
-async fn add_user_instance(ctx: &Context, user_id: UserId) -> Result<(), Error> {
-    let mut data = ctx.data.write().await;
-    let zumbor = data.get_mut::<ZumborInstances>().unwrap();
-
-    zumbor.add(user_id)
-}
-
-async fn remove_user_instance(ctx: &Context, user_id: UserId) {
-    let mut data = ctx.data.write().await;
-    let zumbor = data.get_mut::<ZumborInstances>().unwrap();
-
-    zumbor.remove(user_id);
 }

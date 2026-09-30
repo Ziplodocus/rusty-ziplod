@@ -1,19 +1,16 @@
 use serde_json::Value;
-use serenity::client::Context;
 
 use crate::{
+    Context,
     commands::zumbor::{effects::LingeringEffect, player::stats::Stats},
     errors::Error,
-    storage::StorageClient,
 };
 
 use super::Player;
 
 // Fetches the player's save if it exists
-pub async fn load_save(ctx: &Context, user_tag: &str) -> Result<Player, Error> {
-    let data = ctx.data.read().await;
-
-    let storage_client = data.get::<StorageClient>().unwrap();
+pub async fn load_save(ctx: Context<'_>, user_tag: &str) -> Result<Player, Error> {
+    let storage_client = &ctx.data().storage_client;
     let path = "zumbor/saves/".to_string() + user_tag + ".json";
 
     let bytes = storage_client.get(&path).await?;
@@ -108,12 +105,8 @@ pub async fn load_save(ctx: &Context, user_tag: &str) -> Result<Player, Error> {
 }
 
 impl Player {
-    pub async fn delete_save(self, ctx: &Context) -> Result<(), Error> {
-        let data = ctx.data.read().await;
-
-        let storage_client = data
-            .get::<StorageClient>()
-            .ok_or(Error::Plain("Storage client not accessible!"))?;
+    pub async fn delete_save(self, ctx: Context<'_>) -> Result<(), Error> {
+        let storage_client = &ctx.data().storage_client;
 
         dbg!(&self.tag);
         storage_client
@@ -121,12 +114,8 @@ impl Player {
             .await
     }
 
-    pub async fn save(&self, ctx: &Context) -> Result<(), Error> {
-        let data = ctx.data.read().await;
-
-        let storage_client = data
-            .get::<StorageClient>()
-            .ok_or(Error::Plain("Storage client not accessible!"))?;
+    pub async fn save(&self, ctx: Context<'_>) -> Result<(), Error> {
+        let storage_client = &ctx.data().storage_client;
 
         let player_json: String = serde_json::to_string(&self).map_err(Error::Json)?;
         let save_name = "zumbor/saves/".to_string() + &self.tag;
