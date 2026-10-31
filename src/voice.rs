@@ -1,5 +1,4 @@
 use futures_util::{Stream, StreamExt};
-use rustls::crypto::CryptoProvider;
 use std::{
     io::{Read, Seek, Write},
     sync::{
@@ -7,10 +6,7 @@ use std::{
         mpsc::{self, Receiver},
     },
 };
-use symphonia::core::{
-    io::{MediaSource, MediaSourceStream, MediaSourceStreamOptions},
-    probe::Hint,
-};
+use symphonia::core::io::{MediaSource, MediaSourceStream, MediaSourceStreamOptions};
 
 use serenity::model::prelude::{ChannelId, GuildId};
 use songbird::input::{AudioStream, Input, LiveInput};

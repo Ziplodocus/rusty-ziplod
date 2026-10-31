@@ -5,9 +5,7 @@ use serenity::{
     model::channel::{Attachment, Message},
 };
 
-use crate::{
-    CommandResult, Context, commands::play::count_tracks, errors::Error, storage::StorageClient,
-};
+use crate::{CommandResult, Context, commands::play::count_tracks, errors::Error};
 
 #[poise::command(slash_command, prefix_command)]
 pub async fn add(
@@ -15,7 +13,7 @@ pub async fn add(
     msg: Message,
     #[description = "The track type to add"] track_type: String,
 ) -> CommandResult {
-    ctx.defer().await;
+    let _ = ctx.defer().await;
 
     println!("The add command has been triggered");
 
@@ -49,7 +47,7 @@ pub async fn add(
     };
 
     println!("Add command ended");
-    return Ok(());
+    Ok(())
 }
 
 async fn fetch_attachment_stream(

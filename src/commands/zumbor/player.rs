@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use serenity::{
     all::CreateEmbedAuthor,
     builder::CreateEmbed,
-    model::{prelude::ChannelId, user::User},
+    model::user::User,
 };
 use std::{cmp, sync::Arc};
 

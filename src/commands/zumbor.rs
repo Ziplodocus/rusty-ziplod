@@ -1,4 +1,4 @@
-use serenity::{all::UserId, model::prelude::Message};
+use serenity::all::UserId;
 
 mod attributes;
 mod effects;

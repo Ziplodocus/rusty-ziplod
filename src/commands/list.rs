@@ -1,6 +1,6 @@
 use crate::{CommandResult, Context};
 
-use crate::{errors::Error, storage::StorageClient};
+use crate::errors::Error;
 
 use cloud_storage::Object;
 
@@ -9,7 +9,7 @@ pub async fn list(
     ctx: Context<'_>,
     #[description = "The type of track to list"] track_type: String,
 ) -> CommandResult {
-    ctx.defer().await;
+    let _ = ctx.defer().await;
 
     let all_tracks = get_tracks(ctx, &track_type).await?;
 
@@ -23,7 +23,7 @@ pub async fn list(
     .await?;
 
     // println!("Play command ended");
-    return Ok(());
+    Ok(())
 }
 
 pub async fn get_tracks(ctx: Context<'_>, track_type: &str) -> Result<Vec<Object>, Error> {

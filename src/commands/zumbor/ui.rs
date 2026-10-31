@@ -2,7 +2,7 @@ use std::{collections::VecDeque, fmt, panic, sync::Arc, time::Duration};
 
 use serenity::{
     all::{
-        ChannelId, CreateActionRow, CreateButton, CreateMessage, EditMessage, Interaction, Message,
+        CreateActionRow, CreateButton, CreateMessage, EditMessage, Interaction, Message,
     },
     builder::CreateEmbed,
 };

@@ -1,18 +1,11 @@
-use serenity::{
-    all::GuildId,
-    model::prelude::{ChannelType, GuildChannel, Member, Message},
-};
+use serenity::model::prelude::{ChannelType, GuildChannel, Member};
 
-use crate::{
-    Context,
-    errors::Error
-};
+use crate::{Context, errors::Error};
 
-pub async fn fetch_voice_channel(
-    ctx: Context<'_>,
-    member: &Member,
-) -> Result<GuildChannel, Error> {
-    let guild = ctx.guild_id().ok_or(Error::Plain("Can only be used in a server"))?;
+pub async fn get_voice_channel(ctx: Context<'_>, member: &Member) -> Result<GuildChannel, Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or(Error::Plain("Can only be used in a server"))?;
     let channels = guild.channels(ctx).await.expect("Guild is available");
 
     for (_, channel) in channels {

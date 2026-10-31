@@ -1,16 +1,13 @@
-use poise::{ApplicationContext, Context::Application};
+use poise::Context::Application;
 use serenity::{
     futures::Stream,
-    model::{
-        guild::Member,
-        prelude::{GuildChannel, Message},
-    },
+    model::{guild::Member, prelude::GuildChannel},
 };
 
 use crate::{
     CommandResult, Context,
     errors::Error,
-    utilities::{message, random},
+    utilities::{guild, random},
     voice,
 };
 
@@ -23,7 +20,7 @@ pub async fn play(
 ) -> CommandResult {
     println!("The play command has been triggered");
 
-    ctx.defer().await;
+    let _ = ctx.defer().await;
 
     let member = match member {
         Some(member) => member,
@@ -34,9 +31,7 @@ pub async fn play(
             .into_owned(),
     };
 
-    ctx.guild_id().unwrap().channels(ctx);
-
-    let voice_res = message::fetch_voice_channel(ctx, &member).await;
+    let voice_res = guild::get_voice_channel(ctx, &member).await;
     let Ok(voice_channel) = voice_res else {
         let _res = ctx.say(voice_res.err().unwrap().to_string()).await;
         return Ok(());
@@ -76,10 +71,10 @@ pub async fn play(
 
     // If application command, then remove the initial interaction response
     if let Application(app_ctx) = ctx {
-        app_ctx.interaction.delete_response(ctx).await;
+        let _ = app_ctx.interaction.delete_response(ctx).await;
     }
 
-    return Ok(());
+    Ok(())
 }
 
 async fn play_track(
@@ -118,9 +113,9 @@ pub async fn count_tracks(ctx: Context<'_>, track_type: &str) -> Result<usize, E
     storage_client.get_count(&file_name).await
 }
 
-async fn fetch_track<'a>(
+async fn fetch_track(
     ctx: Context<'_>,
-    track_type: &'a str,
+    track_type: &str,
     track_num: u32,
 ) -> Result<impl Stream<Item = Result<u8, Error>> + Unpin, Error> {
     let storage_client = &(ctx.data().storage_client);

@@ -5,12 +5,10 @@ mod utilities;
 mod voice;
 
 use dotenv::dotenv;
-use poise::{Prefix, PrefixFrameworkOptions, serenity_prelude as serenity};
-use rustls::crypto::CryptoProvider;
+use poise::{PrefixFrameworkOptions, serenity_prelude as serenity};
 use songbird::serenity::SerenityInit;
 use std::env;
 use storage::StorageClient;
-use tokio::sync::RwLock;
 
 type CommandError = Box<dyn std::error::Error + Send + Sync>;
 type CommandResult = Result<(), CommandError>;
@@ -28,7 +26,7 @@ use commands::{
 #[cfg(feature = "chat")]
 use crate::commands::chat::ChatBot;
 
-struct Data {
+pub struct Data {
     storage_client: StorageClient,
     zumbor: Zumbor,
     #[cfg(feature = "chat")]
@@ -65,17 +63,16 @@ async fn main() {
     let token = env::var("DISCORD_TOKEN").expect("Token");
     let intents =
         serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT;
-    let prefix = env::var("COMMAND_PREFIX").expect("Prefix");
+    let _prefix = env::var("COMMAND_PREFIX").expect("Prefix");
 
     println!("Env variables determined.");
 
-    // let crypto_provider = CryptoProvider::get_default().unwrap();
-    // crypto_provider..install_default();
-
     let data = Data::new().await;
 
-    let mut prefix_options = PrefixFrameworkOptions::default();
-    prefix_options.prefix = Some("!".into());
+    let prefix_options = PrefixFrameworkOptions {
+        prefix: Some("!".into()),
+        ..Default::default()
+    };
 
     let poise_framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {

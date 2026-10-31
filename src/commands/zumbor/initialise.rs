@@ -2,7 +2,7 @@ use serenity::{
     all::CreateMessage,
     builder::CreateEmbed,
     model::{
-        prelude::{ChannelId, Message, UserId},
+        prelude::Message,
         user::User,
     },
 };
