@@ -5,10 +5,12 @@ mod utilities;
 mod voice;
 
 use dotenv::dotenv;
-use poise::serenity_prelude as serenity;
+use poise::{Prefix, PrefixFrameworkOptions, serenity_prelude as serenity};
+use rustls::crypto::CryptoProvider;
 use songbird::serenity::SerenityInit;
 use std::env;
 use storage::StorageClient;
+use tokio::sync::RwLock;
 
 type CommandError = Box<dyn std::error::Error + Send + Sync>;
 type CommandResult = Result<(), CommandError>;
@@ -16,10 +18,10 @@ type Context<'a> = poise::Context<'a, Data, CommandError>;
 
 use commands::{
     add::add,
-    //     list::LIST_COMMAND,
-    //     ping::PING_COMMAND,
+    list::list,
+    ping::ping,
     play::play,
-    //     themes::THEME_COMMAND,
+    // themes::themes,
     zumbor::{Zumbor, zumbor},
 };
 
@@ -56,6 +58,10 @@ impl Data {
 async fn main() {
     dotenv().ok();
 
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
     let token = env::var("DISCORD_TOKEN").expect("Token");
     let intents =
         serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT;
@@ -63,11 +69,18 @@ async fn main() {
 
     println!("Env variables determined.");
 
+    // let crypto_provider = CryptoProvider::get_default().unwrap();
+    // crypto_provider..install_default();
+
     let data = Data::new().await;
+
+    let mut prefix_options = PrefixFrameworkOptions::default();
+    prefix_options.prefix = Some("!".into());
 
     let poise_framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![play(), zumbor(), add()],
+            prefix_options,
+            commands: vec![play(), zumbor(), add(), ping(), list()],
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {

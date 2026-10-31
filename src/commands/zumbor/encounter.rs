@@ -177,7 +177,7 @@ pub enum EncounterResultKind {
 
 // Return a random encounter from the storage bucket
 pub async fn get_random(ctx: Context<'_>) -> Result<Encounter, Error> {
-    let storage_client = ctx.data().storage_client;
+    let storage_client = &(ctx.data().storage_client);
 
     let objects = storage_client.get_objects("zumbor/encounters").await?;
 

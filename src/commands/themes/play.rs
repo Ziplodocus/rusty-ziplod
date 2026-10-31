@@ -1,8 +1,7 @@
-use serenity::all::{Context, Message, standard::Args};
-
 use crate::{
-    errors::Error, storage::StorageClient, utilities::message::resolve_voice_channel, voice,
+    Context, errors::Error, storage::StorageClient, utilities::message::fetch_voice_channel, voice,
 };
+use serenity::all::Message;
 
 use super::{get_tag, get_theme_path};
 
@@ -17,7 +16,7 @@ pub async fn play(ctx: Context<'_>, msg: &Message, mut args: Args) -> Result<(),
         }
     };
 
-    let voice_channel = match resolve_voice_channel(ctx, msg).await {
+    let voice_channel = match fetch_voice_channel(ctx, ctx.author_member().into()).await {
         Ok(voice_channel) => voice_channel,
         Err(_) => {
             let _ = msg.reply(ctx, "Get in a voice channel idot.").await;

@@ -7,24 +7,25 @@ mod initialise;
 mod player;
 mod ui;
 use initialise::start;
+use tokio::sync::RwLock;
 
 use crate::{CommandResult, Context, errors::Error};
 
 pub struct Zumbor {
-    instances: ZumborInstances,
+    instances: RwLock<ZumborInstances>,
 }
 
 impl Zumbor {
     pub fn new() -> Self {
-        let instances = ZumborInstances::default();
+        let instances = RwLock::new(ZumborInstances::default());
 
         Zumbor { instances }
     }
 }
 
 #[poise::command(slash_command, prefix_command)]
-pub async fn zumbor(ctx: Context<'_>, msg: Message) -> CommandResult {
-    let res = start(ctx, &msg).await;
+pub async fn zumbor(ctx: Context<'_>) -> CommandResult {
+    let res = start(ctx).await;
     match res {
         Ok(some) => println!("{}", some),
         Err(err) => println!("{}", err),

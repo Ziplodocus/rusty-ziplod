@@ -1,10 +1,7 @@
-use crate::{errors::Error, storage::StorageClient, utilities::random::random_range};
-use serenity::{
-    all::User,
-    framework::standard::{Args, CommandResult, macros::command},
-    model::prelude::Message,
-    prelude::Context,
+use crate::{
+    CommandResult, Context, errors::Error, storage::StorageClient, utilities::random::random_range,
 };
+use serenity::all::User;
 
 mod add;
 mod check;
@@ -12,16 +9,14 @@ mod play;
 mod remove;
 
 #[poise::command(slash_command, prefix_command)]
-pub async fn theme(ctx: Context<'_>, msg: &Message, mut args: Args) -> CommandResult {
-    let subcommand = args.single::<String>().map_err(|err| {
-        println!("{:?}", err);
-        Error::Plain("Uh oh it went wrong")
-    })?;
-
-    dbg!(get_tag(&msg.author));
-    dbg!(msg.author.discriminator);
-    dbg!(&msg.author.name);
-    dbg!(msg.author.tag());
+pub async fn theme(
+    ctx: Context<'_>,
+    #[description = "Subcommand to execute"] subcommand: String,
+) -> CommandResult {
+    // dbg!(get_tag(&msg.author));
+    // dbg!(msg.author.discriminator);
+    // dbg!(&msg.author.name);
+    // dbg!(msg.author.tag());
 
     let res: Result<(), Error> = match subcommand.as_str() {
         "add" => add::add(ctx, msg, args).await,

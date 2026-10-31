@@ -7,7 +7,7 @@ use serenity::{
     },
 };
 
-use crate::{Context, commands::zumbor::ZumborInstances, errors::Error};
+use crate::{Context, errors::Error};
 
 use super::{
     effects::Effectable,
@@ -16,11 +16,11 @@ use super::{
     ui::{ContinueOption, UI},
 };
 
-pub async fn start(ctx: Context<'_>, msg: &Message) -> Result<bool, Error> {
+pub async fn start(ctx: Context<'_>) -> Result<bool, Error> {
     let user: &User = ctx.author();
     let zumbor = &(ctx.data().zumbor);
 
-    if let Err(err) = zumbor.instances.add(user.id) {
+    if let Err(err) = zumbor.instances.write().await.add(user.id) {
         nice_message(
             ctx,
             "You Fail!".to_string(),
@@ -115,7 +115,7 @@ pub async fn start(ctx: Context<'_>, msg: &Message) -> Result<bool, Error> {
             //     }
             // };
 
-            zumbor.instances.remove(user.id);
+            zumbor.instances.write().await.remove(user.id);
             return Ok(true);
         }
 
@@ -125,7 +125,7 @@ pub async fn start(ctx: Context<'_>, msg: &Message) -> Result<bool, Error> {
             continue;
         };
 
-        zumbor.instances.remove(user.id);
+        zumbor.instances.write().await.remove(user.id);
 
         ui.queue_message(
             CreateEmbed::new()

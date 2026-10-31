@@ -1,32 +1,19 @@
-use serenity::{
-    framework::standard::{Args, CommandResult, macros::command},
-    model::prelude::Message,
-    prelude::Context,
-};
+use crate::{CommandResult, Context};
 
-use crate::{errors::Error, storage::StorageClient, utilities::message};
+use crate::{errors::Error, storage::StorageClient};
 
 use cloud_storage::Object;
 
 #[poise::command(slash_command, prefix_command)]
-pub async fn list(ctx: Context<'_>, msg: &Message, mut args: Args) -> CommandResult {
-    println!("The play command has been triggered");
-    let maybe_voice_channel = message::resolve_voice_channel(ctx, msg).await;
-
-    if let Err(err) = maybe_voice_channel {
-        msg.reply(ctx, err.to_string()).await?;
-        return Ok(());
-    }
-
-    let track_type: String = match args.single::<String>() {
-        Ok(arg) => arg,
-        Err(_) => "meme".to_owned(),
-    };
+pub async fn list(
+    ctx: Context<'_>,
+    #[description = "The type of track to list"] track_type: String,
+) -> CommandResult {
+    ctx.defer().await;
 
     let all_tracks = get_tracks(ctx, &track_type).await?;
 
-    msg.reply(
-        ctx,
+    ctx.reply(
         all_tracks
             .into_iter()
             .map(|obj| obj.name)
@@ -40,11 +27,7 @@ pub async fn list(ctx: Context<'_>, msg: &Message, mut args: Args) -> CommandRes
 }
 
 pub async fn get_tracks(ctx: Context<'_>, track_type: &str) -> Result<Vec<Object>, Error> {
-    let data = ctx.data.read().await;
-    let storage_client = data
-        .get::<StorageClient>()
-        .expect("Storage client is available in the context");
+    let storage_client = &(ctx.data().storage_client);
     let file_name = format!("tracks/{track_type}/");
-
     storage_client.get_objects(&file_name).await
 }

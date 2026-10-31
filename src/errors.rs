@@ -1,4 +1,4 @@
-use serenity::framework::standard::CommandError;
+use crate::CommandError;
 
 #[derive(Debug)]
 pub enum Error {

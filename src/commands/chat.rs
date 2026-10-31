@@ -1,7 +1,5 @@
-use serenity::{
-    framework::standard::{CommandResult, macros::command},
-    model::prelude::Message,
-};
+use crate::{CommandResult, Context};
+use serenity::model::prelude::Message;
 
 use kalosm::{
     language::{Chat, Llama, LlamaSource},
@@ -9,6 +7,33 @@ use kalosm::{
 };
 
 use crate::errors::Error;
+
+#[poise::command(slash_command, prefix_command)]
+pub async fn chat(ctx: Context<'_>, message: String) -> CommandResult {
+    println!("Chat triggered {}", message);
+
+    ctx.defer().await;
+
+    let chat = ctx.data().chat;
+
+    let maybe_response = chat.prompt(&message).await;
+
+    let response = maybe_response.map_err(|err| {
+        dbg!(&err);
+        err
+    })?;
+
+    dbg!(&response);
+
+    let res = ctx.reply(response).await;
+
+    if let Err(err) = res {
+        dbg!(err);
+        let _ = ctx.reply("I'm having a bit of trouble you fool").await;
+    }
+
+    Ok(())
+}
 
 fn get_prompt(i: usize) -> &'static str {
     let prompts = [
@@ -60,34 +85,4 @@ impl ChatBot {
 
         self.client = chat;
     }
-}
-
-impl TypeMapKey for ChatBot {
-    type Value = ChatBot;
-}
-
-#[poise::command(slash_command, prefix_command)]
-pub async fn chat(ctx: Context<'_>, msg: &Message) -> CommandResult {
-    let message = msg.content.replace("!chat", "");
-    println!("Chat triggered {}", message);
-    let mut data = ctx.data.write().await;
-    let chatbot = data.get_mut::<ChatBot>().take().unwrap();
-
-    let maybe_response = chatbot.prompt(&message).await;
-
-    let response = maybe_response.map_err(|err| {
-        dbg!(&err);
-        err
-    })?;
-
-    dbg!(&response);
-
-    let res = msg.reply(ctx, response).await;
-
-    if let Err(err) = res {
-        dbg!(err);
-        let _ = msg.reply(ctx, "I'm having a bit of trouble you fool").await;
-    }
-
-    Ok(())
 }

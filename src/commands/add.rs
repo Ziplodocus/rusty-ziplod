@@ -15,6 +15,8 @@ pub async fn add(
     msg: Message,
     #[description = "The track type to add"] track_type: String,
 ) -> CommandResult {
+    ctx.defer().await;
+
     println!("The add command has been triggered");
 
     let Some(file) = msg.attachments.first() else {

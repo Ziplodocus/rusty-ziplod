@@ -1,12 +1,8 @@
-use serenity::{
-    framework::standard::{CommandResult, macros::command},
-    model::prelude::Message,
-    prelude::Context,
-};
+use crate::{CommandResult, Context};
 
 #[poise::command(slash_command, prefix_command)]
-pub async fn ping(ctx: Context<'_>, msg: &Message) -> CommandResult {
-    msg.reply(ctx, "Pong!").await?;
+pub async fn ping(ctx: Context<'_>) -> CommandResult {
+    ctx.reply("Pong!").await?;
 
     Ok(())
 }

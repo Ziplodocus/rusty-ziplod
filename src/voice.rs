@@ -1,4 +1,5 @@
 use futures_util::{Stream, StreamExt};
+use rustls::crypto::CryptoProvider;
 use std::{
     io::{Read, Seek, Write},
     sync::{
@@ -38,19 +39,21 @@ pub async fn play(
     );
 
     // All my audio streams are mp3s
-    let mut hint = Hint::new();
-    hint.with_extension("mp3");
-
     let audio_stream = AudioStream {
         input: media_stream,
-        hint: Some(hint),
     };
 
     let input = LiveInput::Wrapped(audio_stream);
     let input = Input::Live(input, None);
 
     {
-        let handler_lock = manager.join(guild_id, channel_id).await.unwrap();
+        let handler_lock = match manager.join(guild_id, channel_id).await {
+            Ok(handler) => handler,
+            Err(err) => {
+                dbg!(&err);
+                return Err(Error::Songbird(err));
+            }
+        };
         let mut handler = handler_lock.lock().await;
         handler.play_only_input(input);
     }

@@ -1,3 +1,4 @@
+use poise::{ApplicationContext, Context::Application};
 use serenity::{
     futures::Stream,
     model::{
@@ -21,6 +22,8 @@ pub async fn play(
     #[description = "The user to play to"] member: Option<Member>,
 ) -> CommandResult {
     println!("The play command has been triggered");
+
+    ctx.defer().await;
 
     let member = match member {
         Some(member) => member,
@@ -71,7 +74,11 @@ pub async fn play(
             format!("{o}")
         })?;
 
-    // println!("Play command ended");
+    // If application command, then remove the initial interaction response
+    if let Application(app_ctx) = ctx {
+        app_ctx.interaction.delete_response(ctx).await;
+    }
+
     return Ok(());
 }
 
