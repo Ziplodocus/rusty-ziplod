@@ -5,22 +5,15 @@ use serenity::{
     model::channel::{Attachment, Message},
 };
 
-use crate::{CommandResult, Context, commands::play::count_tracks, errors::Error};
+use crate::{CommandError, CommandResult, Context, commands::play::count_tracks, errors::Error};
 
 #[poise::command(slash_command, prefix_command)]
 pub async fn add(
     ctx: Context<'_>,
-    msg: Message,
+    #[description = "MP3 file to upload"] file: Attachment,
     #[description = "The track type to add"] track_type: String,
 ) -> CommandResult {
-    let _ = ctx.defer().await;
-
-    println!("The add command has been triggered");
-
-    let Some(file) = msg.attachments.first() else {
-        ctx.say("That message has no attachments dummy.").await?;
-        return Ok(());
-    };
+    let _ = ctx.defer_ephemeral().await;
 
     let stream = match fetch_attachment_stream(file.clone()).await {
         Ok(stream) => stream,
@@ -39,14 +32,16 @@ pub async fn add(
     let path: String = format!("tracks/{track_type}/{num}.mp3");
 
     let storage_client = &(ctx.data().storage_client);
-    if let Err(_err) = storage_client
+    if let Err(err) = storage_client
         .create_stream(stream, &path, None, "audio/mpeg")
         .await
     {
         ctx.say("Failed to upload your stinky file").await?;
+        return Err(err.into());
     };
 
-    println!("Add command ended");
+    ctx.say(format!("Uploaded as {track_type}/{num}.mp3"));
+
     Ok(())
 }
 
@@ -57,9 +52,6 @@ async fn fetch_attachment_stream(
         Some(val) if val == "audio/mpeg" => true,
         _ => return Err(Error::Plain("The attachment is not an mp3")),
     };
-
-    dbg!(&file.url);
-
     let stream = reqwest::Client::new()
         .get(&file.url)
         .send()

@@ -1,10 +1,22 @@
 mod commands;
 mod errors;
+mod events;
 mod storage;
 mod utilities;
 mod voice;
 
+#[cfg(feature = "chat")]
+use commands::chat::ChatBot;
+use commands::{
+    add::add,
+    list::list,
+    ping::ping,
+    play::play,
+    theme::theme,
+    zumbor::{Zumbor, zumbor},
+};
 use dotenv::dotenv;
+use events::Handler;
 use poise::{PrefixFrameworkOptions, serenity_prelude as serenity};
 use songbird::serenity::SerenityInit;
 use std::env;
@@ -13,18 +25,6 @@ use storage::StorageClient;
 type CommandError = Box<dyn std::error::Error + Send + Sync>;
 type CommandResult = Result<(), CommandError>;
 type Context<'a> = poise::Context<'a, Data, CommandError>;
-
-use commands::{
-    add::add,
-    list::list,
-    ping::ping,
-    play::play,
-    // themes::themes,
-    zumbor::{Zumbor, zumbor},
-};
-
-#[cfg(feature = "chat")]
-use crate::commands::chat::ChatBot;
 
 pub struct Data {
     storage_client: StorageClient,
@@ -77,7 +77,7 @@ async fn main() {
     let poise_framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             prefix_options,
-            commands: vec![play(), zumbor(), add(), ping(), list()],
+            commands: vec![play(), zumbor(), add(), ping(), list(), theme()],
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
@@ -90,6 +90,7 @@ async fn main() {
 
     // Create a new instance of the Client, logging in as a bot.
     let mut serenity = serenity::Client::builder(&token, intents)
+        .event_handler(Handler)
         .register_songbird()
         .framework(poise_framework)
         .await

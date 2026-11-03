@@ -1,25 +1,22 @@
-use serenity::all::{Context, Message, standard::Args};
+use crate::{CommandResult, Context};
 
-use crate::{errors::Error, storage::StorageClient};
+#[poise::command(slash_command, prefix_command)]
+pub async fn list(ctx: Context<'_>) -> CommandResult {
+    let _ = ctx.defer_ephemeral().await;
 
-use super::get_tag;
+    let storage_client = &(ctx.data().storage_client);
+    let user = ctx.author();
+    let tag = user.tag();
 
-pub async fn check(ctx: Context<'_>, msg: &Message, mut _args: Args) -> Result<(), Error> {
-    let data = ctx.data.read().await;
-
-    let storage_client = data
-        .get::<StorageClient>()
-        .expect("Storage client is available in the context");
-
-    let intro_path = format!("themes/{}/intro", get_tag(&msg.author));
-    let outro_path = format!("themes/{}/outro", get_tag(&msg.author));
+    let intro_path = format!("themes/{}/intro", tag);
+    let outro_path = format!("themes/{}/outro", tag);
 
     let intros = storage_client.get_objects(&intro_path);
     let outros = storage_client.get_objects(&outro_path);
 
     let (intros, outros) = tokio::join!(intros, outros);
 
-    let mut reply: String = "Here are your current themes... \nIntros:".to_string();
+    let mut reply: String = format!("{tag}:\nIntros:");
 
     let intro_list: Vec<String> = intros
         .unwrap_or(Vec::new())
@@ -37,7 +34,7 @@ pub async fn check(ctx: Context<'_>, msg: &Message, mut _args: Args) -> Result<(
     reply += "\nOutros:\n\t";
     reply += outro_list.join("\n\t").as_str();
 
-    let _ = msg.reply(ctx, reply).await;
+    let _ = ctx.say(reply).await;
 
     Ok(())
 }

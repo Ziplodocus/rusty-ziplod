@@ -9,11 +9,11 @@ pub async fn list(
     ctx: Context<'_>,
     #[description = "The type of track to list"] track_type: String,
 ) -> CommandResult {
-    let _ = ctx.defer().await;
+    let _ = ctx.defer_ephemeral().await;
 
     let all_tracks = get_tracks(ctx, &track_type).await?;
 
-    ctx.reply(
+    ctx.say(
         all_tracks
             .into_iter()
             .map(|obj| obj.name)
@@ -22,7 +22,6 @@ pub async fn list(
     )
     .await?;
 
-    // println!("Play command ended");
     Ok(())
 }
 
