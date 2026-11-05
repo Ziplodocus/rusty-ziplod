@@ -38,7 +38,32 @@ pub async fn event_handler(
 
                 return Ok(());
             }
-            Some(_old) => {}
+            Some(old) => {
+                let None = new.channel_id else {
+                    return Ok(());
+                };
+                let Some(channel) = old.channel_id else {
+                    return Ok(());
+                };
+                let Some(member) = &old.member else {
+                    return Ok(());
+                };
+                let Some(guild_id) = old.guild_id else {
+                    return Ok(());
+                };
+
+                let tag = member.user.tag();
+                let storage_client = &data.storage_client;
+
+                let path = get_theme_path(&tag, "outro", None, storage_client)
+                    .await
+                    .unwrap();
+                let file_stream = storage_client.get_stream(&path).await.unwrap();
+
+                let _ = voice::play(ctx, channel, guild_id, file_stream).await;
+
+                return Ok(());
+            }
         },
         _ => {}
     }
