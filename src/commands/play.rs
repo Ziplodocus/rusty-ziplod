@@ -66,7 +66,8 @@ pub async fn play(
         .await
         .map_err(|o| {
             println!("{o}");
-            format!("{o}")
+            format!("{o}");
+            o
         })?;
 
     // If application command, then remove the initial interaction response
@@ -92,12 +93,17 @@ async fn play_track(
         .expect("The channel to be in a guild")
         .id;
 
-    voice::play(ctx, voice_channel.id, guild_id, track_stream)
-        .await
-        .map_err(|o| {
-            println!("{o}");
-            o
-        })?;
+    voice::play(
+        ctx.serenity_context(),
+        voice_channel.id,
+        guild_id,
+        track_stream,
+    )
+    .await
+    .map_err(|o| {
+        println!("{o}");
+        o
+    })?;
 
     Ok(())
 }

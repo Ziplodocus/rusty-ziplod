@@ -16,7 +16,7 @@ use commands::{
     zumbor::{Zumbor, zumbor},
 };
 use dotenv::dotenv;
-use events::Handler;
+use events::event_handler;
 use poise::{PrefixFrameworkOptions, serenity_prelude as serenity};
 use songbird::serenity::SerenityInit;
 use std::env;
@@ -78,6 +78,7 @@ async fn main() {
         .options(poise::FrameworkOptions {
             prefix_options,
             commands: vec![play(), zumbor(), add(), ping(), list(), theme()],
+            event_handler: |framework, event| Box::pin(event_handler(framework, event)),
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
@@ -90,7 +91,6 @@ async fn main() {
 
     // Create a new instance of the Client, logging in as a bot.
     let mut serenity = serenity::Client::builder(&token, intents)
-        .event_handler(Handler)
         .register_songbird()
         .framework(poise_framework)
         .await

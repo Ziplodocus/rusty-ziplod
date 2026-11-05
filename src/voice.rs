@@ -8,18 +8,21 @@ use std::{
 };
 use symphonia::core::io::{MediaSource, MediaSourceStream, MediaSourceStreamOptions};
 
-use serenity::model::prelude::{ChannelId, GuildId};
+use serenity::{
+    all::prelude::Context,
+    model::prelude::{ChannelId, GuildId},
+};
 use songbird::input::{AudioStream, Input, LiveInput};
 
-use crate::{Context, errors::Error};
+use crate::errors::Error;
 
 pub async fn play(
-    ctx: Context<'_>,
+    ctx: &Context,
     channel_id: ChannelId,
     guild_id: GuildId,
     mut file_stream: impl Stream<Item = Result<u8, Error>> + Unpin,
 ) -> Result<(), Error> {
-    let manager = songbird::get(ctx.serenity_context())
+    let manager = songbird::get(ctx)
         .await
         .expect("Songbird Voice client placed in at initialisation.")
         .clone();

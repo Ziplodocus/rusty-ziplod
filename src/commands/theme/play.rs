@@ -1,7 +1,6 @@
+use crate::{CommandResult, Context};
 use crate::{utilities::guild, voice};
 use poise::Context::Application;
-
-use crate::{CommandResult, Context};
 
 use super::get_theme_path;
 
@@ -34,7 +33,13 @@ pub async fn play(
     let path = get_theme_path(&tag, &kind, name.as_deref(), storage_client).await?;
     let file_stream = storage_client.get_stream(&path).await?;
 
-    let _ = voice::play(ctx, voice_channel.id, voice_channel.guild_id, file_stream).await;
+    let _ = voice::play(
+        ctx.serenity_context(),
+        voice_channel.id,
+        voice_channel.guild_id,
+        file_stream,
+    )
+    .await;
 
     // If application command, then remove the initial interaction response
     if let Application(app_ctx) = ctx {
